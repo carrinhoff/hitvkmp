@@ -13,6 +13,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.zxing.core)
+            implementation(libs.androidx.security.crypto)
         }
     }
 }
