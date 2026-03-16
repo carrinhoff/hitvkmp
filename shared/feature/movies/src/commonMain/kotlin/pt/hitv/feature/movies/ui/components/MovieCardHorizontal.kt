@@ -1,0 +1,151 @@
+package pt.hitv.feature.movies.ui.components
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import pt.hitv.core.model.Movie
+import pt.hitv.core.model.enums.ClickType
+import pt.hitv.core.designsystem.theme.getThemeColors
+
+/**
+ * MOBILE-ONLY horizontal movie card for category rows.
+ * Ported to CMP - image loading is placeholder-based (platform handles images).
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MovieCardHorizontal(
+    movie: Movie,
+    onMovieClicked: (ClickType) -> Unit,
+    showTopBadge: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val themeColors = getThemeColors()
+    val gradientBrush = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0x4D000000),
+                Color(0xB3000000)
+            )
+        )
+    }
+
+    Card(
+        modifier = modifier
+            .width(280.dp)
+            .height(160.dp)
+            .combinedClickable(
+                onClick = { onMovieClicked(ClickType.CLICK) },
+                onLongClick = { onMovieClicked(ClickType.LONG_CLICK) }
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Placeholder background for movie poster
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(themeColors.backgroundSecondary)
+            )
+
+            // Gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(gradientBrush)
+            )
+
+            // Content
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp)
+            ) {
+                if (showTopBadge) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .background(
+                                color = themeColors.primaryColor.copy(alpha = 0.9f),
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = "TOP", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (movie.isFavorite) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(24.dp)
+                            .background(color = Color(0xFFFFA000), shape = RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Default.Star, contentDescription = "Favorite", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxWidth(0.85f)
+                ) {
+                    Text(
+                        text = movie.name ?: "Unknown Movie",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 18.sp
+                    )
+
+                    val rating = movie.rating?.toDoubleOrNull() ?: 0.0
+                    if (rating > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Star, contentDescription = "Rating", tint = Color(0xFFFFA000), modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "%.1f".format(rating),
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
