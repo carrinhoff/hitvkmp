@@ -1,0 +1,174 @@
+-- Movie table for VOD movies
+CREATE TABLE Movie (
+    movieId INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    streamId TEXT NOT NULL,
+    streamIcon TEXT NOT NULL,
+    rating TEXT NOT NULL,
+    added TEXT NOT NULL,
+    categoryCreatorId TEXT NOT NULL,
+    containerExtension TEXT NOT NULL,
+    isFavorite INTEGER AS Boolean NOT NULL DEFAULT 0,
+    userId INTEGER AS Int NOT NULL,
+    lastViewedTimestamp INTEGER NOT NULL DEFAULT 0,
+    lastUpdated INTEGER NOT NULL DEFAULT 0,
+    lastSeen INTEGER NOT NULL DEFAULT 0,
+    contentHash TEXT,
+    syncVersion INTEGER AS Int NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX movie_stream_unique ON Movie(streamId, categoryCreatorId, userId);
+
+-- FTS4 virtual table for fast text search
+CREATE VIRTUAL TABLE Movie_fts USING fts4(
+    name,
+    streamId,
+    nameNormalized,
+    content="Movie",
+    tokenize=unicode61
+);
+
+-- Triggers to keep FTS in sync
+CREATE TRIGGER movie_fts_insert AFTER INSERT ON Movie BEGIN
+    INSERT INTO Movie_fts(docid, name, streamId, nameNormalized)
+    VALUES (new.movieId, new.name, new.streamId, REPLACE(REPLACE(REPLACE(LOWER(new.name), ' ', ''), '.', ''), ',', ''));
+END;
+
+CREATE TRIGGER movie_fts_delete BEFORE DELETE ON Movie BEGIN
+    DELETE FROM Movie_fts WHERE docid = old.movieId;
+END;
+
+CREATE TRIGGER movie_fts_update BEFORE UPDATE ON Movie BEGIN
+    DELETE FROM Movie_fts WHERE docid = old.movieId;
+    INSERT INTO Movie_fts(docid, name, streamId, nameNormalized)
+    VALUES (new.movieId, new.name, new.streamId, REPLACE(REPLACE(REPLACE(LOWER(new.name), ' ', ''), '.', ''), ',', ''));
+END;
+
+-- ==================== Queries ====================
+
+-- All movies paged (grouped by streamId)
+selectAllPaged:
+SELECT * FROM Movie WHERE userId = ? GROUP BY streamId ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Movies by category paged
+selectByCategoryPaged:
+SELECT * FROM Movie WHERE userId = ? AND categoryCreatorId = ? GROUP BY streamId ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Favorite movies paged
+selectFavoritesPaged:
+SELECT * FROM Movie WHERE userId = ? AND isFavorite = 1 GROUP BY streamId ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Recently viewed movies paged
+selectRecentlyViewedPaged:
+SELECT * FROM Movie WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0 GROUP BY streamId ORDER BY lastViewedTimestamp DESC LIMIT ? OFFSET ?;
+
+-- Recently viewed movies (limited)
+selectRecentlyViewed:
+SELECT * FROM Movie WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0 GROUP BY streamId ORDER BY lastViewedTimestamp DESC LIMIT 10;
+
+-- Last added movies paged
+selectLastAddedPaged:
+SELECT * FROM Movie WHERE userId = ? GROUP BY streamId ORDER BY CAST(added AS INTEGER) DESC LIMIT ? OFFSET ?;
+
+-- Last added movies limited
+selectLastAdded:
+SELECT * FROM Movie WHERE userId = ? GROUP BY streamId ORDER BY CAST(added AS INTEGER) DESC LIMIT ?;
+
+-- Continue watching movies (with playback position > 0)
+selectContinueWatching:
+SELECT m.* FROM Movie m
+INNER JOIN MovieInfo mi ON m.streamId = CAST(mi.streamIdCreator AS TEXT) AND m.userId = mi.userId
+WHERE m.userId = ? AND mi.playbackPosition > 0
+GROUP BY m.streamId
+ORDER BY m.lastViewedTimestamp DESC
+LIMIT ?;
+
+-- FTS search
+searchFts:
+SELECT m.* FROM Movie m
+INNER JOIN Movie_fts fts ON m.movieId = fts.docid
+WHERE Movie_fts MATCH ? AND m.userId = ?
+GROUP BY m.streamId
+ORDER BY m.name ASC
+LIMIT ? OFFSET ?;
+
+-- LIKE search (fallback)
+searchByName:
+SELECT * FROM Movie WHERE userId = ? AND LOWER(name) LIKE LOWER(?) GROUP BY streamId ORDER BY name ASC LIMIT ?;
+
+-- Favorites flow
+selectFavorites:
+SELECT * FROM Movie WHERE isFavorite = 1 AND userId = ? GROUP BY streamId;
+
+-- Favorite status
+selectFavoriteStatus:
+SELECT isFavorite FROM Movie WHERE streamId = ? AND userId = ? LIMIT 1;
+
+-- Sorted paged query with dynamic sort
+selectByCategorySorted:
+SELECT * FROM Movie
+WHERE userId = ? AND (? = '' OR categoryCreatorId = ?)
+GROUP BY streamId
+ORDER BY
+    CASE WHEN ? = 'name' AND ? = 1 THEN name END ASC,
+    CASE WHEN ? = 'name' AND ? = 0 THEN name END DESC,
+    CASE WHEN ? = 'rating' AND ? = 1 THEN rating END ASC,
+    CASE WHEN ? = 'rating' AND ? = 0 THEN rating END DESC,
+    CASE WHEN ? = 'added' AND ? = 1 THEN CAST(added AS INTEGER) END ASC,
+    CASE WHEN ? = 'added' AND ? = 0 THEN CAST(added AS INTEGER) END DESC,
+    CAST(added AS INTEGER) DESC
+LIMIT ? OFFSET ?;
+
+-- Count queries
+countByUserId:
+SELECT COUNT(DISTINCT streamId) FROM Movie WHERE userId = ?;
+
+countByCategoryAndUserId:
+SELECT COUNT(DISTINCT streamId) FROM Movie WHERE userId = ? AND categoryCreatorId = ?;
+
+countRecentMovies:
+SELECT COUNT(*) FROM Movie WHERE userId = ? AND lastSeen >= ?;
+
+-- Find existing for sync
+findExistingMovie:
+SELECT * FROM Movie WHERE userId = ? AND streamId = ? AND categoryCreatorId = ? LIMIT 1;
+
+-- All for sync
+selectAllForSync:
+SELECT * FROM Movie WHERE userId = ?;
+
+-- All limited
+selectAllLimited:
+SELECT * FROM Movie WHERE userId = ? GROUP BY streamId ORDER BY name ASC LIMIT ?;
+
+selectByCategoryLimited:
+SELECT * FROM Movie WHERE userId = ? AND categoryCreatorId = ? GROUP BY streamId ORDER BY name ASC LIMIT ?;
+
+-- ==================== Mutations ====================
+
+insertOrReplace:
+INSERT OR REPLACE INTO Movie(name, streamId, streamIcon, rating, added, categoryCreatorId, containerExtension, isFavorite, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertOrIgnore:
+INSERT OR IGNORE INTO Movie(name, streamId, streamIcon, rating, added, categoryCreatorId, containerExtension, isFavorite, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateFavorite:
+UPDATE Movie SET isFavorite = ? WHERE streamId = ? AND userId = ?;
+
+updateLastViewedTimestamp:
+UPDATE Movie SET lastViewedTimestamp = ? WHERE streamId = ? AND userId = ?;
+
+updateById:
+UPDATE Movie SET name = ?, streamId = ?, streamIcon = ?, rating = ?, added = ?, categoryCreatorId = ?, containerExtension = ?, isFavorite = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?
+WHERE movieId = ?;
+
+markAsSeen:
+UPDATE Movie SET lastSeen = ? WHERE userId = ? AND movieId IN ?;
+
+deleteByUserId:
+DELETE FROM Movie WHERE userId = ?;
+
+deleteStale:
+DELETE FROM Movie WHERE userId = ? AND lastSeen < ?;

@@ -1,0 +1,57 @@
+-- Category table for live TV categories
+CREATE TABLE Category (
+    categoryLocalId INTEGER PRIMARY KEY AUTOINCREMENT,
+    categoryId INTEGER AS Int NOT NULL,
+    categoryName TEXT NOT NULL,
+    userId INTEGER AS Int NOT NULL,
+    isPinned INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isHidden INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isDefault INTEGER AS Boolean NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX category_unique ON Category(categoryId, categoryName, userId);
+
+-- ==================== Queries ====================
+
+selectAllByUserId:
+SELECT * FROM Category WHERE userId = ?;
+
+selectAllSorted:
+SELECT * FROM Category WHERE userId = ? ORDER BY isPinned DESC;
+
+selectVisibleSorted:
+SELECT * FROM Category WHERE userId = ? AND isHidden = 0 ORDER BY isPinned DESC;
+
+selectDefaultCategory:
+SELECT * FROM Category WHERE userId = ? AND isDefault = 1 LIMIT 1;
+
+-- ==================== Mutations ====================
+
+insertOrReplace:
+INSERT OR REPLACE INTO Category(categoryId, categoryName, userId, isPinned, isHidden, isDefault)
+VALUES (?, ?, ?, ?, ?, ?);
+
+insertOrIgnore:
+INSERT OR IGNORE INTO Category(categoryId, categoryName, userId, isPinned, isHidden, isDefault)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updatePinStatus:
+UPDATE Category SET isPinned = ? WHERE categoryId = ? AND userId = ?;
+
+updateHideStatus:
+UPDATE Category SET isHidden = ? WHERE categoryId = ? AND userId = ?;
+
+updateAllHideStatus:
+UPDATE Category SET isHidden = ? WHERE userId = ?;
+
+updateAllPinStatus:
+UPDATE Category SET isPinned = ? WHERE userId = ?;
+
+updateDefaultStatus:
+UPDATE Category SET isDefault = ? WHERE categoryId = ? AND userId = ?;
+
+clearAllDefaults:
+UPDATE Category SET isDefault = 0 WHERE userId = ?;
+
+deleteByUserId:
+DELETE FROM Category WHERE userId = ?;

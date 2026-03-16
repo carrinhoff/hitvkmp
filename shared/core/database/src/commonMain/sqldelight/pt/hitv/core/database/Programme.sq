@@ -1,0 +1,141 @@
+-- Programme table for EPG programme data
+CREATE TABLE Programme (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_name TEXT,
+    start_time INTEGER NOT NULL,
+    end_time INTEGER NOT NULL,
+    userId INTEGER AS Int NOT NULL,
+    imageUrl TEXT,
+    FOREIGN KEY (channel_name, userId) REFERENCES EpgChannel(channel_id, userId) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX programme_unique ON Programme(channel_name, start_time, end_time);
+
+-- Title table for programme titles
+CREATE TABLE Title (
+    title_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    programme_id INTEGER REFERENCES Programme(id) ON DELETE CASCADE,
+    userId INTEGER AS Int NOT NULL
+);
+
+CREATE INDEX title_programme_idx ON Title(programme_id);
+
+-- Description table for programme descriptions
+CREATE TABLE Description (
+    desc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    desc TEXT,
+    programme_id INTEGER REFERENCES Programme(id) ON DELETE CASCADE,
+    userId INTEGER AS Int NOT NULL
+);
+
+CREATE INDEX description_programme_idx ON Description(programme_id);
+
+-- ==================== Programme Queries ====================
+
+-- Get channel with current programme
+selectChannelWithProgrammes:
+SELECT * FROM EpgChannel AS epgc
+INNER JOIN Programme AS pg ON epgc.channel_id = pg.channel_name
+WHERE epgc.display_name = ? AND pg.userId = ?
+AND ? BETWEEN pg.start_time AND pg.end_time;
+
+-- Get channel with programme details (title + desc)
+selectChannelWithProgrammeDetails:
+SELECT * FROM EpgChannel AS epgc
+INNER JOIN Programme AS pg ON epgc.channel_id = pg.channel_name
+INNER JOIN Title AS t ON t.programme_id = pg.id
+INNER JOIN Description AS d ON d.programme_id = pg.id
+WHERE epgc.channel_id = ? AND pg.userId = ?
+AND ? BETWEEN pg.start_time AND pg.end_time;
+
+-- Get all channels with their programmes
+selectAllChannelsWithProgrammes:
+SELECT * FROM Channel AS ch
+LEFT JOIN EpgChannel AS epgc ON epgc.channel_id = ch.epgChannelId AND epgc.userId = ch.userId
+LEFT JOIN Programme AS pg ON pg.channel_name = epgc.channel_id AND pg.userId = ch.userId
+LEFT JOIN Title AS t ON t.programme_id = pg.id
+LEFT JOIN Description AS d ON d.programme_id = pg.id
+WHERE ch.userId = ?;
+
+-- Get categories with EPG data and channel counts
+selectCategoriesWithEpgCounts:
+SELECT
+    c.categoryId,
+    c.categoryName,
+    COUNT(DISTINCT epgc.channel_id) AS channelCount
+FROM Category c
+INNER JOIN Channel ch ON ch.categoryCreatorId = CAST(c.categoryId AS TEXT) AND ch.userId = c.userId
+INNER JOIN EpgChannel epgc ON epgc.channel_id = ch.epgChannelId AND epgc.userId = ch.userId
+WHERE c.userId = ?
+AND ch.epgChannelId IS NOT NULL
+AND ch.epgChannelId != ''
+AND EXISTS (
+    SELECT 1 FROM Programme pg
+    WHERE pg.channel_name = epgc.channel_id
+    AND pg.userId = ch.userId
+    AND pg.id IS NOT NULL
+    AND pg.start_time IS NOT NULL
+    AND pg.end_time IS NOT NULL
+    AND pg.start_time < pg.end_time
+    AND pg.end_time > ?
+    AND pg.start_time < ?
+)
+GROUP BY c.categoryId, c.categoryName
+ORDER BY c.categoryName ASC;
+
+-- Get programmes for a specific category
+selectProgrammesForCategory:
+SELECT
+    epgc.channel_id,
+    epgc.logo,
+    epgc.display_name,
+    ch.name AS channel_name,
+    pg.start_time,
+    pg.end_time,
+    pg.id,
+    t.title AS title,
+    pg.id AS programme_id,
+    t.title_id AS title_id,
+    d.desc AS description,
+    d.desc_id AS desc_id
+FROM Channel ch
+INNER JOIN EpgChannel epgc ON epgc.channel_id = ch.epgChannelId AND epgc.userId = ch.userId
+INNER JOIN Programme pg ON pg.channel_name = epgc.channel_id AND pg.userId = ch.userId
+LEFT JOIN Title t ON t.programme_id = pg.id
+LEFT JOIN Description d ON d.programme_id = pg.id
+WHERE ch.categoryCreatorId = ?
+AND ch.userId = ?
+AND pg.end_time > ?
+AND pg.start_time < ?
+ORDER BY epgc.display_name, pg.start_time ASC;
+
+-- ==================== Programme Mutations ====================
+
+insertProgramme:
+INSERT OR REPLACE INTO Programme(channel_name, start_time, end_time, userId, imageUrl)
+VALUES (?, ?, ?, ?, ?);
+
+lastInsertProgrammeId:
+SELECT last_insert_rowid();
+
+insertTitle:
+INSERT OR IGNORE INTO Title(title, programme_id, userId)
+VALUES (?, ?, ?);
+
+insertDescription:
+INSERT OR IGNORE INTO Description(desc, programme_id, userId)
+VALUES (?, ?, ?);
+
+-- Delete operations
+deleteProgrammesByUserId:
+DELETE FROM Programme WHERE userId = ?;
+
+deleteTitlesByUserId:
+DELETE FROM Title WHERE programme_id IN (SELECT id FROM Programme WHERE userId = ?);
+
+deleteDescriptionsByUserId:
+DELETE FROM Description WHERE programme_id IN (SELECT id FROM Programme WHERE userId = ?);
+
+deleteEpgChannelsByUserId:
+DELETE FROM EpgChannel WHERE userId = ?;

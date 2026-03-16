@@ -1,0 +1,138 @@
+-- SeriesInfo table for series metadata
+CREATE TABLE SeriesInfo (
+    seriesId TEXT PRIMARY KEY NOT NULL,
+    name TEXT,
+    cover TEXT,
+    plot TEXT,
+    cast_ TEXT,
+    director TEXT,
+    genre TEXT,
+    releaseDate TEXT,
+    last_modified TEXT,
+    rating TEXT,
+    rating_5based REAL,
+    backdrop_path TEXT,
+    youtube_trailer TEXT,
+    episode_run_time TEXT,
+    category_id TEXT,
+    userId INTEGER AS Int NOT NULL
+);
+
+-- Season table
+CREATE TABLE Season (
+    season_id TEXT PRIMARY KEY NOT NULL,
+    air_date TEXT,
+    episode_count INTEGER AS Int,
+    name TEXT,
+    overview TEXT,
+    season_number INTEGER AS Int NOT NULL,
+    cover TEXT,
+    cover_big TEXT,
+    series_id TEXT NOT NULL,
+    userId INTEGER AS Int NOT NULL
+);
+
+-- Episode table
+CREATE TABLE Episode (
+    episode_id TEXT PRIMARY KEY NOT NULL,
+    episode_num INTEGER AS Int,
+    title TEXT,
+    container_extension TEXT,
+    custom_sid TEXT,
+    added TEXT,
+    season INTEGER AS Int,
+    direct_source TEXT,
+    seasonCreatorId TEXT NOT NULL,
+    userId INTEGER AS Int NOT NULL
+);
+
+-- EpisodeInfo table
+CREATE TABLE EpisodeInfo (
+    episodeCreatorId TEXT PRIMARY KEY NOT NULL,
+    tmdb_id REAL,
+    release_date TEXT,
+    plot TEXT,
+    duration_secs REAL,
+    duration TEXT,
+    movie_image TEXT,
+    bitrate REAL,
+    rating REAL,
+    season TEXT,
+    userId INTEGER AS Int NOT NULL,
+    playbackPosition INTEGER NOT NULL DEFAULT 0
+);
+
+-- ==================== Queries ====================
+
+selectSeriesInfo:
+SELECT * FROM SeriesInfo WHERE seriesId = ? AND userId = ?;
+
+-- Get seasons with episodes (flat result, grouped by caller)
+selectSeasonsWithEpisodes:
+SELECT
+    season.season_id AS seasonId,
+    season.air_date AS airDate,
+    season.episode_count AS episodeCount,
+    season.name,
+    season.overview,
+    season.cover,
+    season.cover_big AS coverBig,
+    season.series_id AS seriesId,
+    episode.episode_id AS episodeId,
+    episode.episode_num AS episodeNum,
+    episode.container_extension AS containerExtension,
+    episode.added,
+    episode.season,
+    episode.title,
+    episodeInfo.tmdb_id AS tmdbId,
+    episodeInfo.release_date AS releaseDate,
+    episodeInfo.plot,
+    episodeInfo.duration_secs AS durationSecs,
+    episodeInfo.duration,
+    episodeInfo.bitrate,
+    episodeInfo.rating,
+    episodeInfo.movie_image AS movieImage,
+    season.season_number AS seasonNumber,
+    episodeInfo.playbackPosition
+FROM Season AS season
+INNER JOIN Episode AS episode ON season.season_id = episode.seasonCreatorId
+INNER JOIN EpisodeInfo AS episodeInfo ON episode.episode_id = episodeInfo.episodeCreatorId
+WHERE season.series_id = ? AND season.userId = ?
+ORDER BY episode.season ASC, episode.episode_num ASC;
+
+-- ==================== Mutations ====================
+
+insertSeriesInfo:
+INSERT OR IGNORE INTO SeriesInfo(seriesId, name, cover, plot, cast_, director, genre, releaseDate, last_modified, rating, rating_5based, backdrop_path, youtube_trailer, episode_run_time, category_id, userId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSeason:
+INSERT OR IGNORE INTO Season(season_id, air_date, episode_count, name, overview, season_number, cover, cover_big, series_id, userId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertEpisode:
+INSERT OR IGNORE INTO Episode(episode_id, episode_num, title, container_extension, custom_sid, added, season, direct_source, seasonCreatorId, userId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertEpisodeInfo:
+INSERT OR IGNORE INTO EpisodeInfo(episodeCreatorId, tmdb_id, release_date, plot, duration_secs, duration, movie_image, bitrate, rating, season, userId, playbackPosition)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateEpisodePlaybackPosition:
+UPDATE EpisodeInfo SET playbackPosition = ? WHERE episodeCreatorId = ? AND userId = ?;
+
+updateEpisodeDuration:
+UPDATE EpisodeInfo SET duration_secs = ? WHERE episodeCreatorId = ? AND userId = ?;
+
+-- Delete operations
+deleteSeriesInfoByUserId:
+DELETE FROM SeriesInfo WHERE userId = ?;
+
+deleteSeasonsByUserId:
+DELETE FROM Season WHERE userId = ?;
+
+deleteEpisodesByUserId:
+DELETE FROM Episode WHERE userId = ?;
+
+deleteEpisodesInfoByUserId:
+DELETE FROM EpisodeInfo WHERE userId = ?;

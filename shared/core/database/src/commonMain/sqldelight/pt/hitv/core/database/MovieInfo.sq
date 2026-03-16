@@ -1,0 +1,76 @@
+-- MovieData table for movie stream data
+CREATE TABLE MovieData (
+    streamId INTEGER AS Int PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    added REAL NOT NULL,
+    category_id INTEGER AS Int NOT NULL,
+    container_extension TEXT NOT NULL,
+    custom_sid TEXT,
+    direct_source TEXT,
+    userId INTEGER AS Int NOT NULL DEFAULT 0
+);
+
+-- MovieInfo table for movie metadata
+CREATE TABLE MovieInfo (
+    movieInfoId INTEGER PRIMARY KEY AUTOINCREMENT,
+    streamIdCreator INTEGER AS Int NOT NULL,
+    kinopoisk_url TEXT,
+    tmdb_id TEXT,
+    name TEXT,
+    o_name TEXT,
+    cover_big TEXT,
+    movie_image TEXT,
+    releasedate TEXT,
+    episode_run_time TEXT,
+    youtube_trailer TEXT,
+    director TEXT,
+    actors TEXT,
+    cast_ TEXT,
+    description TEXT,
+    plot TEXT,
+    age TEXT,
+    mpaa_rating TEXT,
+    rating_count_kinopoisk TEXT,
+    country TEXT,
+    genre TEXT,
+    backdrop_path TEXT,
+    duration_secs TEXT,
+    duration TEXT,
+    bitrate TEXT,
+    rating TEXT,
+    userId INTEGER AS Int NOT NULL DEFAULT 0,
+    playbackPosition INTEGER NOT NULL DEFAULT 0
+);
+
+-- ==================== Queries ====================
+
+selectMovieDataWithInfo:
+SELECT md.*, mi.*
+FROM MovieData md
+LEFT JOIN MovieInfo mi ON md.streamId = mi.streamIdCreator AND md.userId = mi.userId
+WHERE md.streamId = ? AND md.userId = ?;
+
+selectMovieInfoByStreamId:
+SELECT * FROM MovieInfo WHERE streamIdCreator = ? AND userId = ? LIMIT 1;
+
+selectPlaybackPosition:
+SELECT playbackPosition FROM MovieInfo WHERE streamIdCreator = ? AND userId = ? LIMIT 1;
+
+-- ==================== Mutations ====================
+
+insertMovieData:
+INSERT OR REPLACE INTO MovieData(streamId, name, added, category_id, container_extension, custom_sid, direct_source, userId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertMovieInfo:
+INSERT OR REPLACE INTO MovieInfo(streamIdCreator, kinopoisk_url, tmdb_id, name, o_name, cover_big, movie_image, releasedate, episode_run_time, youtube_trailer, director, actors, cast_, description, plot, age, mpaa_rating, rating_count_kinopoisk, country, genre, backdrop_path, duration_secs, duration, bitrate, rating, userId, playbackPosition)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePlaybackPosition:
+UPDATE MovieInfo SET playbackPosition = ? WHERE streamIdCreator = ? AND userId = ?;
+
+deleteMovieInfoByUserId:
+DELETE FROM MovieInfo WHERE userId = ?;
+
+deleteMovieDataByUserId:
+DELETE FROM MovieData WHERE userId = ?;

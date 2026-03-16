@@ -1,0 +1,137 @@
+-- CustomGroup table for user-created channel groups
+CREATE TABLE CustomGroup (
+    groupId INTEGER PRIMARY KEY AUTOINCREMENT,
+    groupName TEXT NOT NULL,
+    groupIcon TEXT,
+    createdAt INTEGER NOT NULL DEFAULT 0,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
+    sortOrder INTEGER AS Int NOT NULL DEFAULT 0,
+    isPinned INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isHidden INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isDefault INTEGER AS Boolean NOT NULL DEFAULT 0
+);
+
+-- CustomGroupChannel junction table
+CREATE TABLE CustomGroupChannel (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    groupId INTEGER NOT NULL REFERENCES CustomGroup(groupId) ON DELETE CASCADE,
+    channelId INTEGER NOT NULL REFERENCES Channel(channelId) ON DELETE CASCADE,
+    channelUserId INTEGER AS Int NOT NULL DEFAULT 0,
+    position INTEGER AS Int NOT NULL DEFAULT 0,
+    addedAt INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX custom_group_channel_unique ON CustomGroupChannel(groupId, channelId);
+CREATE INDEX custom_group_channel_group_idx ON CustomGroupChannel(groupId);
+CREATE INDEX custom_group_channel_channel_idx ON CustomGroupChannel(channelId);
+
+-- ==================== Custom Group Queries ====================
+
+selectAllGroups:
+SELECT * FROM CustomGroup ORDER BY sortOrder ASC, groupName ASC;
+
+selectAllGroupsSorted:
+SELECT * FROM CustomGroup ORDER BY isPinned DESC, isHidden ASC, sortOrder ASC, groupName ASC;
+
+selectGroupById:
+SELECT * FROM CustomGroup WHERE groupId = ?;
+
+countGroups:
+SELECT COUNT(*) FROM CustomGroup;
+
+selectDefaultGroup:
+SELECT * FROM CustomGroup WHERE isDefault = 1 LIMIT 1;
+
+-- ==================== Custom Group Mutations ====================
+
+insertGroup:
+INSERT OR REPLACE INTO CustomGroup(groupName, groupIcon, createdAt, updatedAt, sortOrder, isPinned, isHidden, isDefault)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+lastInsertGroupId:
+SELECT last_insert_rowid();
+
+updateGroup:
+UPDATE CustomGroup SET groupName = ?, groupIcon = ?, updatedAt = ?, sortOrder = ?, isPinned = ?, isHidden = ?, isDefault = ?
+WHERE groupId = ?;
+
+deleteGroup:
+DELETE FROM CustomGroup WHERE groupId = ?;
+
+updateGroupSortOrder:
+UPDATE CustomGroup SET sortOrder = ? WHERE groupId = ?;
+
+updateGroupPinStatus:
+UPDATE CustomGroup SET isPinned = ? WHERE groupId = ?;
+
+updateGroupHideStatus:
+UPDATE CustomGroup SET isHidden = ? WHERE groupId = ?;
+
+updateGroupDefaultStatus:
+UPDATE CustomGroup SET isDefault = ? WHERE groupId = ?;
+
+clearAllDefaults:
+UPDATE CustomGroup SET isDefault = 0;
+
+updateAllPinStatus:
+UPDATE CustomGroup SET isPinned = ?;
+
+updateAllHideStatus:
+UPDATE CustomGroup SET isHidden = ?;
+
+-- ==================== Channel-in-Group Queries ====================
+
+selectChannelsInGroup:
+SELECT c.*
+FROM Channel c
+INNER JOIN CustomGroupChannel cgc ON c.channelId = cgc.channelId
+WHERE cgc.groupId = ?
+ORDER BY cgc.position ASC;
+
+selectChannelsInGroupPaged:
+SELECT c.*
+FROM Channel c
+INNER JOIN CustomGroupChannel cgc ON c.channelId = cgc.channelId
+WHERE cgc.groupId = ?
+ORDER BY cgc.position ASC
+LIMIT ? OFFSET ?;
+
+countChannelsInGroup:
+SELECT COUNT(*) FROM CustomGroupChannel WHERE groupId = ?;
+
+isChannelInGroup:
+SELECT EXISTS(SELECT 1 FROM CustomGroupChannel WHERE groupId = ? AND channelId = ?);
+
+selectGroupChannels:
+SELECT * FROM CustomGroupChannel WHERE groupId = ? ORDER BY position ASC;
+
+selectAllGroupChannels:
+SELECT * FROM CustomGroupChannel;
+
+countAllGroupChannels:
+SELECT COUNT(*) FROM CustomGroupChannel;
+
+-- ==================== Channel-in-Group Mutations ====================
+
+addChannelToGroup:
+INSERT OR REPLACE INTO CustomGroupChannel(groupId, channelId, channelUserId, position, addedAt)
+VALUES (?, ?, ?, ?, ?);
+
+removeChannelFromGroupById:
+DELETE FROM CustomGroupChannel WHERE groupId = ? AND channelId = ?;
+
+removeAllChannelsFromGroup:
+DELETE FROM CustomGroupChannel WHERE groupId = ?;
+
+updateChannelPosition:
+UPDATE CustomGroupChannel SET position = ? WHERE id = ?;
+
+cleanupOrphanedChannels:
+DELETE FROM CustomGroupChannel WHERE channelId NOT IN (SELECT channelId FROM Channel);
+
+-- All channels paged (for adding to groups)
+selectAllChannelsPaged:
+SELECT * FROM Channel ORDER BY name ASC LIMIT ? OFFSET ?;
+
+countAllChannels:
+SELECT COUNT(*) FROM Channel;

@@ -1,0 +1,43 @@
+-- ParentalControl table for category protection
+CREATE TABLE ParentalControl (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    categoryId INTEGER AS Int NOT NULL,
+    categoryName TEXT NOT NULL,
+    userId INTEGER AS Int NOT NULL,
+    isProtected INTEGER AS Boolean NOT NULL DEFAULT 1,
+    createdAt INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX parental_control_unique ON ParentalControl(categoryId, userId);
+
+-- ==================== Queries ====================
+
+selectAllByUserId:
+SELECT * FROM ParentalControl WHERE userId = ?;
+
+selectByCategory:
+SELECT * FROM ParentalControl WHERE categoryId = ? AND userId = ? LIMIT 1;
+
+isCategoryProtected:
+SELECT isProtected FROM ParentalControl WHERE categoryId = ? AND userId = ? LIMIT 1;
+
+selectProtectedCategoryIds:
+SELECT categoryId FROM ParentalControl WHERE userId = ? AND isProtected = 1;
+
+countProtected:
+SELECT COUNT(*) FROM ParentalControl WHERE userId = ? AND isProtected = 1;
+
+-- ==================== Mutations ====================
+
+insertOrReplace:
+INSERT OR REPLACE INTO ParentalControl(categoryId, categoryName, userId, isProtected, createdAt)
+VALUES (?, ?, ?, ?, ?);
+
+updateProtectionStatus:
+UPDATE ParentalControl SET isProtected = ? WHERE categoryId = ? AND userId = ?;
+
+deleteByCategory:
+DELETE FROM ParentalControl WHERE categoryId = ? AND userId = ?;
+
+deleteAllByUserId:
+DELETE FROM ParentalControl WHERE userId = ?;

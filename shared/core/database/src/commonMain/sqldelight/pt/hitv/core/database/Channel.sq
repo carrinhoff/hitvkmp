@@ -1,0 +1,123 @@
+-- Channel table for live TV channels
+CREATE TABLE Channel (
+    channelId INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    streamUrl TEXT NOT NULL,
+    streamIcon TEXT NOT NULL,
+    epgChannelId TEXT,
+    categoryCreatorId TEXT NOT NULL,
+    isFavorite INTEGER AS Boolean NOT NULL DEFAULT 0,
+    licenseKey TEXT,
+    userId INTEGER AS Int NOT NULL,
+    lastViewedTimestamp INTEGER NOT NULL DEFAULT 0,
+    lastUpdated INTEGER NOT NULL DEFAULT 0,
+    lastSeen INTEGER NOT NULL DEFAULT 0,
+    contentHash TEXT,
+    syncVersion INTEGER AS Int NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX channel_unique ON Channel(name, streamIcon, categoryCreatorId, userId);
+
+-- ==================== Queries ====================
+
+-- Get all channels for a user (non-paged)
+selectAllByUserId:
+SELECT * FROM Channel WHERE userId = ? ORDER BY name ASC;
+
+-- Get all channels paged
+selectAllPaged:
+SELECT * FROM Channel WHERE userId = ? ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Get channels by category paged
+selectByCategoryPaged:
+SELECT * FROM Channel WHERE userId = ? AND categoryCreatorId = ? ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Get favorite channels paged
+selectFavoritesPaged:
+SELECT * FROM Channel WHERE userId = ? AND isFavorite = 1 ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Get recently viewed channels
+selectRecentlyViewed:
+SELECT * FROM Channel WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0 ORDER BY lastViewedTimestamp DESC LIMIT 10;
+
+-- Get recently viewed channels paged
+selectRecentlyViewedPaged:
+SELECT * FROM Channel WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0 ORDER BY lastViewedTimestamp DESC LIMIT ? OFFSET ?;
+
+-- Search channels by name (case-insensitive)
+searchByName:
+SELECT * FROM Channel WHERE userId = ? AND LOWER(name) LIKE LOWER(?) ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Get a single channel by name and userId
+selectByName:
+SELECT * FROM Channel WHERE name = ? AND userId = ? LIMIT 1;
+
+-- Get a channel by EPG ID
+selectByEpgId:
+SELECT * FROM Channel WHERE LOWER(TRIM(epgChannelId)) = LOWER(TRIM(?)) AND userId = ? LIMIT 1;
+
+-- Get favorite status
+selectFavoriteStatus:
+SELECT isFavorite FROM Channel WHERE name = ? AND categoryCreatorId = ? AND userId = ? LIMIT 1;
+
+-- Find existing channel for sync
+findExistingChannel:
+SELECT * FROM Channel WHERE userId = ? AND name = ? AND categoryCreatorId = ? LIMIT 1;
+
+-- Get all channels for sync
+selectAllForSync:
+SELECT * FROM Channel WHERE userId = ?;
+
+-- Count queries
+countByUserId:
+SELECT COUNT(*) FROM Channel WHERE userId = ?;
+
+countByCategoryAndUserId:
+SELECT COUNT(*) FROM Channel WHERE userId = ? AND categoryCreatorId = ?;
+
+countRecentChannels:
+SELECT COUNT(*) FROM Channel WHERE userId = ? AND lastSeen >= ?;
+
+-- Get channels limited
+selectAllLimited:
+SELECT * FROM Channel WHERE userId = ? ORDER BY name ASC LIMIT ?;
+
+selectByCategoryLimited:
+SELECT * FROM Channel WHERE userId = ? AND categoryCreatorId = ? ORDER BY name ASC LIMIT ?;
+
+-- ==================== Mutations ====================
+
+-- Insert or replace a channel
+insertOrReplace:
+INSERT OR REPLACE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Insert or ignore a channel (returns rowid)
+insertOrIgnore:
+INSERT OR IGNORE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Update favorite status
+updateFavorite:
+UPDATE Channel SET isFavorite = ? WHERE name = ? AND userId = ? AND categoryCreatorId = ?;
+
+-- Update recently viewed timestamp
+updateLastViewedTimestamp:
+UPDATE Channel SET lastViewedTimestamp = ? WHERE name = ? AND userId = ? AND categoryCreatorId = ?;
+
+-- Update channel (full update by id)
+updateById:
+UPDATE Channel SET name = ?, streamUrl = ?, streamIcon = ?, epgChannelId = ?, categoryCreatorId = ?, isFavorite = ?, licenseKey = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?
+WHERE channelId = ?;
+
+-- Mark channels as seen
+markAsSeen:
+UPDATE Channel SET lastSeen = ? WHERE userId = ? AND channelId IN ?;
+
+-- Delete channels by userId
+deleteByUserId:
+DELETE FROM Channel WHERE userId = ?;
+
+-- Delete stale channels
+deleteStale:
+DELETE FROM Channel WHERE userId = ? AND lastSeen < ?;

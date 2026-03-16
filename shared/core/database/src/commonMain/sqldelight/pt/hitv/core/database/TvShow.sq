@@ -1,0 +1,193 @@
+-- TvShow table for TV series
+CREATE TABLE TvShow (
+    tvShowId INTEGER PRIMARY KEY AUTOINCREMENT,
+    num INTEGER AS Int,
+    name TEXT,
+    series_id INTEGER AS Int NOT NULL,
+    cover TEXT,
+    plot TEXT,
+    cast_ TEXT,
+    director TEXT,
+    genre TEXT,
+    releaseDate TEXT,
+    last_modified TEXT,
+    rating TEXT,
+    rating_5based REAL,
+    backdrop_path TEXT,
+    youtube_trailer TEXT,
+    episode_run_time TEXT,
+    category_id TEXT NOT NULL,
+    isFavorite INTEGER AS Boolean NOT NULL DEFAULT 0,
+    userId INTEGER AS Int NOT NULL,
+    lastViewedTimestamp INTEGER NOT NULL DEFAULT 0,
+    lastUpdated INTEGER NOT NULL DEFAULT 0,
+    lastSeen INTEGER NOT NULL DEFAULT 0,
+    contentHash TEXT,
+    syncVersion INTEGER AS Int NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX tvshow_unique ON TvShow(series_id, category_id, userId);
+
+-- FTS4 virtual table for fast text search
+CREATE VIRTUAL TABLE TvShow_fts USING fts4(
+    name,
+    series_id,
+    nameNormalized,
+    content="TvShow",
+    tokenize=unicode61
+);
+
+-- Triggers to keep FTS in sync
+CREATE TRIGGER tvshow_fts_insert AFTER INSERT ON TvShow BEGIN
+    INSERT INTO TvShow_fts(docid, name, series_id, nameNormalized)
+    VALUES (new.tvShowId, new.name, new.series_id, REPLACE(REPLACE(REPLACE(LOWER(COALESCE(new.name, '')), ' ', ''), '.', ''), ',', ''));
+END;
+
+CREATE TRIGGER tvshow_fts_delete BEFORE DELETE ON TvShow BEGIN
+    DELETE FROM TvShow_fts WHERE docid = old.tvShowId;
+END;
+
+CREATE TRIGGER tvshow_fts_update BEFORE UPDATE ON TvShow BEGIN
+    DELETE FROM TvShow_fts WHERE docid = old.tvShowId;
+    INSERT INTO TvShow_fts(docid, name, series_id, nameNormalized)
+    VALUES (new.tvShowId, new.name, new.series_id, REPLACE(REPLACE(REPLACE(LOWER(COALESCE(new.name, '')), ' ', ''), '.', ''), ',', ''));
+END;
+
+-- ==================== Queries ====================
+
+-- All TV shows paged (grouped by series_id)
+selectAllPaged:
+SELECT * FROM TvShow WHERE userId = ? GROUP BY series_id ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- TV shows by category paged
+selectByCategoryPaged:
+SELECT * FROM TvShow WHERE userId = ? AND category_id = ? GROUP BY series_id ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Favorite TV shows paged
+selectFavoritesPaged:
+SELECT * FROM TvShow WHERE userId = ? AND isFavorite = 1 GROUP BY series_id ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Recently viewed TV shows paged
+selectRecentlyViewedPaged:
+SELECT * FROM TvShow WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0 GROUP BY series_id ORDER BY lastViewedTimestamp DESC LIMIT ? OFFSET ?;
+
+-- Recently viewed TV shows flow
+selectRecentlyViewed:
+SELECT * FROM TvShow WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0 ORDER BY lastViewedTimestamp DESC LIMIT 10;
+
+-- Last added TV shows paged
+selectLastAddedPaged:
+SELECT * FROM TvShow WHERE userId = ? GROUP BY series_id ORDER BY CAST(last_modified AS INTEGER) DESC LIMIT ? OFFSET ?;
+
+-- Last added limited
+selectLastAdded:
+SELECT * FROM TvShow WHERE userId = ? GROUP BY series_id ORDER BY CAST(last_modified AS INTEGER) DESC LIMIT ?;
+
+-- Continue watching series
+selectContinueWatching:
+SELECT DISTINCT t.* FROM TvShow t
+INNER JOIN Season s ON t.series_id = CAST(s.series_id AS INTEGER) AND t.userId = s.userId
+INNER JOIN Episode e ON s.season_id = e.seasonCreatorId AND s.userId = e.userId
+INNER JOIN EpisodeInfo ei ON e.episode_id = ei.episodeCreatorId AND e.userId = ei.userId
+WHERE t.userId = ? AND ei.playbackPosition > 0
+ORDER BY t.lastViewedTimestamp DESC
+LIMIT ?;
+
+-- FTS search
+searchFts:
+SELECT t.* FROM TvShow t
+INNER JOIN TvShow_fts fts ON t.tvShowId = fts.docid
+WHERE TvShow_fts MATCH ? AND t.userId = ?
+GROUP BY t.series_id
+ORDER BY t.name ASC
+LIMIT ? OFFSET ?;
+
+-- LIKE search (fallback)
+searchByName:
+SELECT * FROM TvShow WHERE userId = ? AND LOWER(name) LIKE LOWER(?) GROUP BY series_id ORDER BY name ASC LIMIT ?;
+
+-- Favorites flow
+selectFavorites:
+SELECT * FROM TvShow WHERE isFavorite = 1 AND userId = ? GROUP BY series_id;
+
+-- Favorite status
+selectFavoriteStatus:
+SELECT isFavorite FROM TvShow WHERE series_id = ? AND userId = ? LIMIT 1;
+
+-- Sorted paged query with dynamic sort
+selectByCategorySorted:
+SELECT * FROM TvShow
+WHERE userId = ? AND (? = '' OR category_id = ?)
+GROUP BY series_id
+ORDER BY
+    CASE WHEN ? = 'name' AND ? = 1 THEN name END ASC,
+    CASE WHEN ? = 'name' AND ? = 0 THEN name END DESC,
+    CASE WHEN ? = 'rating' AND ? = 1 THEN rating END ASC,
+    CASE WHEN ? = 'rating' AND ? = 0 THEN rating END DESC,
+    CASE WHEN ? = 'added' AND ? = 1 THEN CAST(last_modified AS INTEGER) END ASC,
+    CASE WHEN ? = 'added' AND ? = 0 THEN CAST(last_modified AS INTEGER) END DESC,
+    CAST(last_modified AS INTEGER) DESC
+LIMIT ? OFFSET ?;
+
+-- Count queries
+countByUserId:
+SELECT COUNT(DISTINCT series_id) FROM TvShow WHERE userId = ?;
+
+countByCategoryAndUserId:
+SELECT COUNT(DISTINCT series_id) FROM TvShow WHERE userId = ? AND category_id = ?;
+
+countSearchTvShows:
+SELECT COUNT(DISTINCT series_id) FROM TvShow WHERE userId = ? AND name LIKE ?;
+
+countFavorites:
+SELECT COUNT(DISTINCT series_id) FROM TvShow WHERE userId = ? AND isFavorite = 1;
+
+countRecentlyViewed:
+SELECT COUNT(DISTINCT series_id) FROM TvShow WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND lastViewedTimestamp != 0;
+
+countRecentTvShows:
+SELECT COUNT(*) FROM TvShow WHERE userId = ? AND lastSeen >= ?;
+
+-- Find existing for sync
+findExistingTvShow:
+SELECT * FROM TvShow WHERE userId = ? AND series_id = ? AND category_id = ? LIMIT 1;
+
+-- All for sync
+selectAllForSync:
+SELECT * FROM TvShow WHERE userId = ?;
+
+-- All limited
+selectAllLimited:
+SELECT * FROM TvShow WHERE userId = ? GROUP BY series_id ORDER BY name ASC LIMIT ?;
+
+selectByCategoryLimited:
+SELECT * FROM TvShow WHERE userId = ? AND category_id = ? GROUP BY series_id ORDER BY name ASC LIMIT ?;
+
+-- ==================== Mutations ====================
+
+insertOrReplace:
+INSERT OR REPLACE INTO TvShow(num, name, series_id, cover, plot, cast_, director, genre, releaseDate, last_modified, rating, rating_5based, backdrop_path, youtube_trailer, episode_run_time, category_id, isFavorite, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertOrIgnore:
+INSERT OR IGNORE INTO TvShow(num, name, series_id, cover, plot, cast_, director, genre, releaseDate, last_modified, rating, rating_5based, backdrop_path, youtube_trailer, episode_run_time, category_id, isFavorite, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateFavoriteStatus:
+UPDATE TvShow SET isFavorite = ? WHERE series_id = ? AND userId = ?;
+
+updateLastViewedTimestamp:
+UPDATE TvShow SET lastViewedTimestamp = ? WHERE series_id = ? AND userId = ?;
+
+updateById:
+UPDATE TvShow SET num = ?, name = ?, series_id = ?, cover = ?, plot = ?, cast_ = ?, director = ?, genre = ?, releaseDate = ?, last_modified = ?, rating = ?, rating_5based = ?, backdrop_path = ?, youtube_trailer = ?, episode_run_time = ?, category_id = ?, isFavorite = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?
+WHERE tvShowId = ?;
+
+markAsSeen:
+UPDATE TvShow SET lastSeen = ? WHERE userId = ? AND tvShowId IN ?;
+
+deleteByUserId:
+DELETE FROM TvShow WHERE userId = ?;
+
+deleteStale:
+DELETE FROM TvShow WHERE userId = ? AND lastSeen < ?;

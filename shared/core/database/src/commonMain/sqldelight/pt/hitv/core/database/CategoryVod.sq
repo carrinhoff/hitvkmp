@@ -1,0 +1,57 @@
+-- CategoryVod table for movie (VOD) categories
+CREATE TABLE CategoryVod (
+    categoryVodLocalId INTEGER PRIMARY KEY AUTOINCREMENT,
+    categoryId INTEGER AS Int NOT NULL,
+    categoryName TEXT NOT NULL,
+    userId INTEGER AS Int NOT NULL,
+    isPinned INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isHidden INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isDefault INTEGER AS Boolean NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX category_vod_unique ON CategoryVod(categoryId, categoryName, userId);
+
+-- ==================== Queries ====================
+
+selectAllByUserId:
+SELECT * FROM CategoryVod WHERE userId = ?;
+
+selectAllSorted:
+SELECT * FROM CategoryVod WHERE userId = ? ORDER BY isPinned DESC;
+
+selectVisibleSorted:
+SELECT * FROM CategoryVod WHERE userId = ? AND isHidden = 0 ORDER BY isPinned DESC;
+
+selectDefaultCategory:
+SELECT * FROM CategoryVod WHERE userId = ? AND isDefault = 1 LIMIT 1;
+
+-- ==================== Mutations ====================
+
+insertOrReplace:
+INSERT OR REPLACE INTO CategoryVod(categoryId, categoryName, userId, isPinned, isHidden, isDefault)
+VALUES (?, ?, ?, ?, ?, ?);
+
+insertOrIgnore:
+INSERT OR IGNORE INTO CategoryVod(categoryId, categoryName, userId, isPinned, isHidden, isDefault)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updatePinStatus:
+UPDATE CategoryVod SET isPinned = ? WHERE categoryId = ? AND userId = ?;
+
+updateHideStatus:
+UPDATE CategoryVod SET isHidden = ? WHERE categoryId = ? AND userId = ?;
+
+updateAllHideStatus:
+UPDATE CategoryVod SET isHidden = ? WHERE userId = ?;
+
+updateAllPinStatus:
+UPDATE CategoryVod SET isPinned = ? WHERE userId = ?;
+
+updateDefaultStatus:
+UPDATE CategoryVod SET isDefault = ? WHERE categoryId = ? AND userId = ?;
+
+clearAllDefaults:
+UPDATE CategoryVod SET isDefault = 0 WHERE userId = ?;
+
+deleteByUserId:
+DELETE FROM CategoryVod WHERE userId = ?;
