@@ -78,7 +78,7 @@ workflows:
               <key>provisioningProfiles</key>
               <dict>
                   <key>pt.hitv.app</key>
-                  <string>HITV AppStore</string>
+                  <string>AxonStream AppStore</string>
               </dict>
               <key>signingCertificate</key>
               <string>Apple Distribution</string>
