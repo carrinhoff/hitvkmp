@@ -1,16 +1,16 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml:2:13-83
-INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml:2:13-83
+ADDED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml:2:13-83
+INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml:2:13-83
 	package
-		INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml
+		INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml
 	xmlns:android
-		ADDED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml:2:23-81
+		ADDED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml:2:23-81
 uses-sdk
-INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml reason: use-sdk injection requested
-INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml
-INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml
+INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml reason: use-sdk injection requested
+INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml
+INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml
 	android:targetSdkVersion
-		INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml
+		INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml
 	android:minSdkVersion
-		INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest7488844606742400060.xml
+		INJECTED from C:\Users\Fabio\StudioProjects\hitv-kmp\shared\core\common\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest8048440523081974166.xml

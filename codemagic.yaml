@@ -49,7 +49,7 @@ workflows:
 
       - name: Build Kotlin iOS framework
         script: |
-          ./gradlew :shared:core:navigation:linkReleaseFrameworkIosArm64
+          ./gradlew :shared:umbrella:linkReleaseFrameworkIosArm64
 
       - name: Build & archive iOS app
         script: |

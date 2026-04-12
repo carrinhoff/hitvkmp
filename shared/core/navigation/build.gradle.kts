@@ -1,19 +1,10 @@
 plugins {
     id("hitv.kmp.library")
     id("hitv.compose.multiplatform")
-    alias(libs.plugins.kotlin.serialization)  // plugins block uses type-safe accessors
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
-    // Override the framework baseName to "shared" so Swift imports it as "import shared"
-    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().configureEach {
-        binaries.withType<org.jetbrains.kotlin.gradle.plugin.mpp.Framework>().configureEach {
-            baseName = "shared"
-            export(project(":shared:core:model"))
-            export(project(":shared:core:common"))
-            export(project(":shared:core:designsystem"))
-        }
-    }
     sourceSets {
         commonMain.dependencies {
             api(project(":shared:core:model"))
@@ -26,20 +17,6 @@ kotlin {
             implementation(libs.findLibrary("voyager-tabNavigator").get())
             implementation(libs.findLibrary("kotlinx-serialization-json").get())
             implementation(libs.findLibrary("koin-compose").get())
-        }
-        // KoinIOS.kt needs these for Koin module aggregation + screen registration
-        iosMain.dependencies {
-            implementation(project(":shared:core:data"))
-            implementation(project(":shared:core:database"))
-            implementation(project(":shared:core:network"))
-            implementation(project(":shared:core:billing"))
-            implementation(project(":shared:feature:auth"))
-            implementation(project(":shared:feature:channels"))
-            implementation(project(":shared:feature:movies"))
-            implementation(project(":shared:feature:series"))
-            implementation(project(":shared:feature:player"))
-            implementation(project(":shared:feature:premium"))
-            implementation(project(":shared:feature:settings"))
         }
     }
 }

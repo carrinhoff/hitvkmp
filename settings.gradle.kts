@@ -50,3 +50,6 @@ include(":shared:feature:premium")
 
 // EPG Module
 include(":shared:epg")
+
+// iOS umbrella framework module
+include(":shared:umbrella")
