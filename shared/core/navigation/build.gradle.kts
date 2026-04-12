@@ -27,12 +27,19 @@ kotlin {
             implementation(libs.findLibrary("kotlinx-serialization-json").get())
             implementation(libs.findLibrary("koin-compose").get())
         }
-        // KoinIOS.kt needs these for Koin module aggregation
+        // KoinIOS.kt needs these for Koin module aggregation + screen registration
         iosMain.dependencies {
             implementation(project(":shared:core:data"))
             implementation(project(":shared:core:database"))
             implementation(project(":shared:core:network"))
             implementation(project(":shared:core:billing"))
+            implementation(project(":shared:feature:auth"))
+            implementation(project(":shared:feature:channels"))
+            implementation(project(":shared:feature:movies"))
+            implementation(project(":shared:feature:series"))
+            implementation(project(":shared:feature:player"))
+            implementation(project(":shared:feature:premium"))
+            implementation(project(":shared:feature:settings"))
         }
     }
 }

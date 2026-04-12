@@ -18,15 +18,37 @@ import pt.hitv.core.sync.di.syncPlatformModule
 import pt.hitv.core.designsystem.theme.ThemeManager
 import pt.hitv.core.data.manager.PairingAnalyticsTracker
 import pt.hitv.core.common.di.commonModule
+// Feature modules
+import pt.hitv.feature.auth.di.authFeatureModule
+import pt.hitv.feature.channels.di.channelsFeatureModule
+import pt.hitv.feature.movies.di.moviesFeatureModule
+import pt.hitv.feature.series.di.seriesModule
+import pt.hitv.feature.player.di.playerModule
+import pt.hitv.feature.premium.di.premiumModule
+import pt.hitv.feature.settings.di.settingsModule
+// Screen registrations
+import pt.hitv.feature.auth.navigation.registerAuthScreens
+import pt.hitv.feature.channels.navigation.registerChannelsScreens
+import pt.hitv.feature.movies.navigation.registerMoviesScreens
+import pt.hitv.feature.series.navigation.registerSeriesScreens
+import pt.hitv.feature.premium.navigation.registerPremiumScreens
+import pt.hitv.feature.settings.navigation.registerSettingsScreens
 
 /**
  * Initialize Koin for iOS.
  *
  * Called from Swift via `KoinIOSKt.doInitKoinIOS()`.
- * Moved from core:common to core:navigation because this module
- * has access to all core dependencies (data, database, network, sync, billing).
+ * Registers all Voyager screens and starts Koin with all modules.
  */
 fun initKoinIOS() {
+    // Register Voyager screen factories (must be before Koin)
+    registerAuthScreens()
+    registerChannelsScreens()
+    registerMoviesScreens()
+    registerSeriesScreens()
+    registerPremiumScreens()
+    registerSettingsScreens()
+
     startKoin {
         modules(
             // Core - shared (commonMain)
@@ -40,6 +62,15 @@ fun initKoinIOS() {
             databasePlatformModule,
             billingPlatformModule,
             syncPlatformModule,
+
+            // Feature modules
+            authFeatureModule,
+            channelsFeatureModule,
+            moviesFeatureModule,
+            seriesModule,
+            premiumModule,
+            settingsModule,
+            playerModule,
 
             // iOS-specific bindings
             iosPlatformModule,
