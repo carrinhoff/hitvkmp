@@ -44,7 +44,7 @@ coil = "3.0.4"
 multiplatformSettings = "1.2.0"
 
 # Paging
-cashPaging = "3.3.0-alpha05-0.6.0"
+cashPaging = "3.3.0-alpha02-0.5.1"
 
 # Lottie
 compottie = "2.0.0-rc01"
@@ -132,6 +132,7 @@ sqldelight-android-driver = { group = "app.cash.sqldelight", name = "android-dri
 sqldelight-native-driver = { group = "app.cash.sqldelight", name = "native-driver", version.ref = "sqldelight" }
 sqldelight-sqlite-driver = { group = "app.cash.sqldelight", name = "sqlite-driver", version.ref = "sqldelight" }
 sqldelight-paging = { group = "app.cash.sqldelight", name = "androidx-paging3-extensions", version.ref = "sqldelight" }
+sqldelight-dialect = { group = "app.cash.sqldelight", name = "sqlite-3-38-dialect", version.ref = "sqldelight" }
 
 # Voyager Navigation
 voyager-navigator = { group = "cafe.adriel.voyager", name = "voyager-navigator", version.ref = "voyager" }

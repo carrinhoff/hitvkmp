@@ -296,9 +296,15 @@ class MovieViewModel(
         viewModelScope.launch {
             try {
                 toggleFavoriteMovieUseCase(movie)
+                println("FAV_DEBUG: toggled ${movie.name} streamId=${movie.streamId} was=$wasFavorite")
                 getFavorites()
+                kotlinx.coroutines.delay(200)
+                println("FAV_DEBUG: favorites now=${_uiState.value.favorites.size} ids=${_uiState.value.favorites.mapNotNull { it.streamId }.take(3)}")
                 if (wasFavorite && isFavoritesFilterActive) { _refreshPagingEvent.emit(Unit) }
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                println("FAV_ERROR: ${e.message}")
+                e.printStackTrace()
+            }
         }
     }
 

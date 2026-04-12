@@ -255,16 +255,16 @@ class AndroidBillingManager(
 
         billingClient?.queryProductDetailsAsync(subscriptionParams) { subscriptionResult, subscriptionDetailsResult ->
             if (subscriptionResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                for (productDetails in subscriptionDetailsResult.productDetailsList) {
+                for (productDetails in subscriptionDetailsResult) {
                     val subscriptionOfferDetails = productDetails.subscriptionOfferDetails?.firstOrNull()
-                    val pricingPhases = subscriptionOfferDetails?.pricingPhases?.pricingPhaseList
+                    val phases = subscriptionOfferDetails?.pricingPhases?.pricingPhaseList
 
-                    val price = if (pricingPhases != null && pricingPhases.isNotEmpty()) {
-                        pricingPhases.last().formattedPrice
+                    val price = if (!phases.isNullOrEmpty()) {
+                        phases.last().formattedPrice
                     } else ""
 
-                    val trialInfo = if (pricingPhases != null && pricingPhases.size > 1) {
-                        parseBillingPeriod(pricingPhases.first().billingPeriod)
+                    val trialInfo = if (phases != null && phases.size > 1) {
+                        parseBillingPeriod(phases.first().billingPeriod)
                     } else null
 
                     pricesMap[productDetails.productId] = price
@@ -277,7 +277,7 @@ class AndroidBillingManager(
 
             billingClient?.queryProductDetailsAsync(inAppParams) { inAppResult, inAppDetailsResult ->
                 if (inAppResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    for (productDetails in inAppDetailsResult.productDetailsList) {
+                    for (productDetails in inAppDetailsResult) {
                         val price = productDetails.oneTimePurchaseOfferDetails?.formattedPrice ?: ""
                         pricesMap[productDetails.productId] = price
                     }

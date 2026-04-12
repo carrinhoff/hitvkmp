@@ -21,7 +21,7 @@ import io.ktor.util.AttributeKey
  */
 class SslFallbackPlugin private constructor() {
 
-    @Volatile
+    @kotlin.concurrent.Volatile
     var sslFallbackActive: Boolean = false
         private set
 

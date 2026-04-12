@@ -253,14 +253,14 @@ private fun ModernCircularProgress(
             if (progress < 100f) {
                 val dotCount = 8
                 for (i in 0 until dotCount) {
-                    val angle = (rotationAngle + (i * 45f)) * (Math.PI / 180f).toFloat()
+                    val angle = (rotationAngle + (i * 45f)) * (kotlin.math.PI / 180.0).toFloat()
                     val dotRadius = 3.dp.toPx()
                     val circleRadius = radius + 12.dp.toPx()
                     val dotCenter = Offset(
                         center.x + circleRadius * cos(angle),
                         center.y + circleRadius * sin(angle)
                     )
-                    val alpha = (sin((rotationAngle + i * 45f) * (Math.PI / 180f).toFloat()) + 1f) / 2f
+                    val alpha = (sin((rotationAngle + i * 45f) * (kotlin.math.PI / 180.0).toFloat()) + 1f) / 2f
                     drawCircle(
                         color = primaryColor.copy(alpha = alpha * 0.6f),
                         radius = dotRadius,

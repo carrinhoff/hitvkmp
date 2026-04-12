@@ -24,41 +24,46 @@ dependencies {
     implementation(project(":shared:feature:premium"))
     implementation(project(":shared:epg"))
 
+    // Multiplatform Settings (needed for AndroidPlatformModule)
+    implementation(libs.findLibrary("multiplatform-settings").get())
+
     // Android-specific
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.core.splashscreen)
-    implementation(libs.androidx.lifecycle.process)
+    // Note: type-safe accessors unavailable when convention plugin is from included build.
+    // Using libs.findLibrary() as workaround.
+    implementation(libs.findLibrary("androidx-core-ktx").get())
+    implementation(libs.findLibrary("androidx-appcompat").get())
+    implementation(libs.findLibrary("androidx-activity-compose").get())
+    implementation(libs.findLibrary("androidx-core-splashscreen").get())
+    implementation(libs.findLibrary("androidx-lifecycle-process").get())
 
     // Koin Android
-    implementation(libs.koin.android)
-    implementation(libs.koin.compose)
-    implementation(libs.koin.compose.viewmodel)
+    implementation(libs.findLibrary("koin-android").get())
+    implementation(libs.findLibrary("koin-compose").get())
+    implementation(libs.findLibrary("koin-compose-viewmodel").get())
 
     // Firebase KMP
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.config)
-    implementation(libs.firebase.database)
+    implementation(libs.findLibrary("firebase-analytics").get())
+    implementation(libs.findLibrary("firebase-crashlytics").get())
+    implementation(libs.findLibrary("firebase-config").get())
+    implementation(libs.findLibrary("firebase-database").get())
 
     // Media3
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.exoplayer.dash)
-    implementation(libs.androidx.media3.exoplayer.smoothstreaming)
-    implementation(libs.androidx.media3.cast)
-    implementation(libs.androidx.media3.ui)
+    implementation(libs.findLibrary("androidx-media3-exoplayer").get())
+    implementation(libs.findLibrary("androidx-media3-exoplayer-hls").get())
+    implementation(libs.findLibrary("androidx-media3-exoplayer-dash").get())
+    implementation(libs.findLibrary("androidx-media3-exoplayer-smoothstreaming").get())
+    implementation(libs.findLibrary("androidx-media3-cast").get())
+    implementation(libs.findLibrary("androidx-media3-ui").get())
 
     // Cast
-    implementation(libs.play.services.cast)
-    implementation(libs.play.services.cast.framework)
-    implementation(libs.androidx.mediarouter)
+    implementation(libs.findLibrary("play-services-cast").get())
+    implementation(libs.findLibrary("play-services-cast-framework").get())
+    implementation(libs.findLibrary("androidx-mediarouter").get())
 
     // WorkManager
-    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.findLibrary("androidx-work-runtime-ktx").get())
 
     // TV
-    implementation(libs.androidx.tv.foundation)
-    implementation(libs.androidx.tv.material)
+    implementation(libs.findLibrary("androidx-tv-foundation").get())
+    implementation(libs.findLibrary("androidx-tv-material").get())
 }

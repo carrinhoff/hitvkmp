@@ -137,8 +137,8 @@ class ParentalControlManagerImpl(
 
     override suspend fun isCategoryProtected(categoryId: Int, userId: Int): Boolean {
         if (!isParentalControlEnabled()) return false
-        return parentalControlQueries.isCategoryProtected(categoryId, userId)
-            .executeAsOneOrNull()?.isProtected ?: false
+        return parentalControlQueries.isCategoryProtected(categoryId.toLong(), userId.toLong())
+            .executeAsOneOrNull()?.let { it != 0L } ?: false
     }
 
     override suspend fun getProtectedCategoryIds(userId: Int): List<String> {
@@ -146,20 +146,20 @@ class ParentalControlManagerImpl(
         if (isSessionAuthenticated()) return emptyList()
         return parentalControlQueries.selectProtectedCategoryIds(userId.toLong())
             .executeAsList()
-            .map { it.categoryId.toString() }
+            .map { it.toString() }
     }
 
     override suspend fun setCategoryProtection(categoryId: Int, categoryName: String, userId: Int, isProtected: Boolean) {
-        val existing = parentalControlQueries.selectByCategory(categoryId, userId)
+        val existing = parentalControlQueries.selectByCategory(categoryId.toLong(), userId.toLong())
             .executeAsOneOrNull()
         if (existing != null) {
-            parentalControlQueries.updateProtectionStatus(isProtected, categoryId, userId)
+            parentalControlQueries.updateProtectionStatus(if (isProtected) 1L else 0L, categoryId.toLong(), userId.toLong())
         } else {
             parentalControlQueries.insertOrReplace(
-                categoryId = categoryId,
+                categoryId = categoryId.toLong(),
                 categoryName = categoryName,
-                userId = userId,
-                isProtected = isProtected,
+                userId = userId.toLong(),
+                isProtected = if (isProtected) 1L else 0L,
                 createdAt = Clock.System.now().toEpochMilliseconds()
             )
         }
@@ -177,7 +177,7 @@ class ParentalControlManagerImpl(
     override fun getParentalControlByCategory(categoryId: Int, userId: Int): Flow<ParentalControl?> {
         return flow {
             emit(
-                parentalControlQueries.selectByCategory(categoryId, userId)
+                parentalControlQueries.selectByCategory(categoryId.toLong(), userId.toLong())
                     .executeAsOneOrNull()?.toParentalControl()
             )
         }.flowOn(Dispatchers.IO)
@@ -190,7 +190,7 @@ class ParentalControlManagerImpl(
     }
 
     override suspend fun removeProtection(categoryId: Int, userId: Int) {
-        parentalControlQueries.updateProtectionStatus(false, categoryId, userId)
+        parentalControlQueries.updateProtectionStatus(0L, categoryId.toLong(), userId.toLong())
     }
 
     override suspend fun deleteAllParentalControls(userId: Int) {

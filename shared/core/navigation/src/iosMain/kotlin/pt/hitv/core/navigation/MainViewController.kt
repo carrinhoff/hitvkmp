@@ -1,20 +1,28 @@
 package pt.hitv.core.navigation
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.ComposeUIViewController
-import cafe.adriel.voyager.navigator.Navigator
-import pt.hitv.core.designsystem.theme.AppThemeProvider
+import org.koin.compose.koinInject
+import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.core.navigation.adaptive.AdaptiveScaffold
 
 /**
  * iOS entry point creating a UIViewController hosting the shared Compose UI.
- *
- * Called from Swift via `MainViewControllerKt.MainViewController()`.
- * Wraps the app in the shared theme provider and Voyager Navigator.
+ * Checks login state and shows LoginScreen or main navigation accordingly.
  */
 fun MainViewController() = ComposeUIViewController {
-    AppThemeProvider {
-        val initialScreen = ScreenRegistry.create(HitvScreen.CHANNELS)
-        Navigator(initialScreen)
-    }
+    val preferencesHelper: PreferencesHelper = koinInject()
+    var isLoggedIn by remember { mutableStateOf(preferencesHelper.getUserId() != -1) }
+
+    AdaptiveScaffold(
+        isLoggedIn = isLoggedIn,
+        onLoginSuccess = { isLoggedIn = true },
+        hasAnnualOrLifetime = false,
+        modifier = Modifier.fillMaxSize()
+    )
 }

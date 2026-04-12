@@ -8,41 +8,24 @@ CREATE TABLE Movie (
     added TEXT NOT NULL,
     categoryCreatorId TEXT NOT NULL,
     containerExtension TEXT NOT NULL,
-    isFavorite INTEGER AS Boolean NOT NULL DEFAULT 0,
-    userId INTEGER AS Int NOT NULL,
+    isFavorite INTEGER NOT NULL DEFAULT 0,
+    userId INTEGER NOT NULL,
     lastViewedTimestamp INTEGER NOT NULL DEFAULT 0,
     lastUpdated INTEGER NOT NULL DEFAULT 0,
     lastSeen INTEGER NOT NULL DEFAULT 0,
     contentHash TEXT,
-    syncVersion INTEGER AS Int NOT NULL DEFAULT 1
+    syncVersion INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE UNIQUE INDEX movie_stream_unique ON Movie(streamId, categoryCreatorId, userId);
 
--- FTS4 virtual table for fast text search
+-- FTS4 virtual table for fast text search (standalone, no content sync)
 CREATE VIRTUAL TABLE Movie_fts USING fts4(
     name,
     streamId,
     nameNormalized,
-    content="Movie",
     tokenize=unicode61
 );
-
--- Triggers to keep FTS in sync
-CREATE TRIGGER movie_fts_insert AFTER INSERT ON Movie BEGIN
-    INSERT INTO Movie_fts(docid, name, streamId, nameNormalized)
-    VALUES (new.movieId, new.name, new.streamId, REPLACE(REPLACE(REPLACE(LOWER(new.name), ' ', ''), '.', ''), ',', ''));
-END;
-
-CREATE TRIGGER movie_fts_delete BEFORE DELETE ON Movie BEGIN
-    DELETE FROM Movie_fts WHERE docid = old.movieId;
-END;
-
-CREATE TRIGGER movie_fts_update BEFORE UPDATE ON Movie BEGIN
-    DELETE FROM Movie_fts WHERE docid = old.movieId;
-    INSERT INTO Movie_fts(docid, name, streamId, nameNormalized)
-    VALUES (new.movieId, new.name, new.streamId, REPLACE(REPLACE(REPLACE(LOWER(new.name), ' ', ''), '.', ''), ',', ''));
-END;
 
 -- ==================== Queries ====================
 

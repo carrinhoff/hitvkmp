@@ -10,10 +10,10 @@ class SqlDelightConventionPlugin : Plugin<Project> {
             pluginManager.apply("app.cash.sqldelight")
 
             extensions.configure<SqlDelightExtension> {
-                databases {
-                    create("HitvDatabase") {
-                        packageName.set("pt.hitv.core.database")
-                    }
+                databases.create("HitvDatabase") {
+                    packageName.set("pt.hitv.core.database")
+                    // Use SQLite 3.38 dialect for REPLACE() function support
+                    dialect(project.libs.findLibrary("sqldelight-dialect").get())
                 }
             }
 

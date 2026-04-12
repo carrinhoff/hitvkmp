@@ -3,7 +3,7 @@ CREATE TABLE EpgChannel (
     channel_id TEXT NOT NULL,
     display_name TEXT,
     logo TEXT,
-    userId INTEGER AS Int NOT NULL,
+    userId INTEGER NOT NULL,
     PRIMARY KEY (channel_id, userId)
 );
 

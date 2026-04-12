@@ -27,14 +27,14 @@ class ParentalControlRepositoryImpl(
     }
 
     override suspend fun getParentalControlByCategory(categoryId: Int, userId: Int): ParentalControl? {
-        return parentalControlQueries.selectByCategory(categoryId, userId)
+        return parentalControlQueries.selectByCategory(categoryId.toLong(), userId.toLong())
             .executeAsOneOrNull()?.toParentalControl()
     }
 
     override fun getParentalControlByCategoryFlow(categoryId: Int, userId: Int): Flow<ParentalControl?> {
         return flow {
             emit(
-                parentalControlQueries.selectByCategory(categoryId, userId)
+                parentalControlQueries.selectByCategory(categoryId.toLong(), userId.toLong())
                     .executeAsOneOrNull()?.toParentalControl()
             )
         }.flowOn(Dispatchers.IO)
@@ -42,20 +42,20 @@ class ParentalControlRepositoryImpl(
 
     override suspend fun insertParentalControl(parentalControl: ParentalControl) {
         parentalControlQueries.insertOrReplace(
-            categoryId = parentalControl.categoryId,
+            categoryId = parentalControl.categoryId.toLong(),
             categoryName = parentalControl.categoryName,
-            userId = parentalControl.userId,
-            isProtected = parentalControl.isProtected,
+            userId = parentalControl.userId.toLong(),
+            isProtected = if (parentalControl.isProtected) 1L else 0L,
             createdAt = parentalControl.createdAt
         )
     }
 
     override suspend fun updateProtectionStatus(categoryId: Int, userId: Int, isProtected: Boolean) {
-        parentalControlQueries.updateProtectionStatus(isProtected, categoryId, userId)
+        parentalControlQueries.updateProtectionStatus(if (isProtected) 1L else 0L, categoryId.toLong(), userId.toLong())
     }
 
     override suspend fun deleteParentalControl(categoryId: Int, userId: Int) {
-        parentalControlQueries.deleteByCategory(categoryId, userId)
+        parentalControlQueries.deleteByCategory(categoryId.toLong(), userId.toLong())
     }
 
     override suspend fun deleteAllParentalControls(userId: Int) {
@@ -69,7 +69,7 @@ class ParentalControlRepositoryImpl(
     }
 
     override suspend fun isCategoryProtected(categoryId: Int, userId: Int): Boolean {
-        return parentalControlQueries.isCategoryProtected(categoryId, userId)
-            .executeAsOneOrNull()?.isProtected ?: false
+        return parentalControlQueries.isCategoryProtected(categoryId.toLong(), userId.toLong())
+            .executeAsOneOrNull()?.let { it != 0L } ?: false
     }
 }

@@ -1,10 +1,10 @@
 -- ParentalControl table for category protection
 CREATE TABLE ParentalControl (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    categoryId INTEGER AS Int NOT NULL,
+    categoryId INTEGER NOT NULL,
     categoryName TEXT NOT NULL,
-    userId INTEGER AS Int NOT NULL,
-    isProtected INTEGER AS Boolean NOT NULL DEFAULT 1,
+    userId INTEGER NOT NULL,
+    isProtected INTEGER NOT NULL DEFAULT 1,
     createdAt INTEGER NOT NULL DEFAULT 0
 );
 

@@ -91,7 +91,7 @@ fun SeriesCardHorizontal(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(imageVector = Icons.Default.Star, contentDescription = "Rating", tint = Color(0xFFFFA000), modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "%.1f".format(rating), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(text = "${kotlin.math.round(rating * 10) / 10.0}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }

@@ -17,7 +17,7 @@ data class NetworkTvShow(
     @SerialName("last_modified") val lastModified: String? = null,
     @SerialName("rating") val rating: String? = null,
     @SerialName("rating_5based") val rating5based: Double? = null,
-    @SerialName("backdrop_path") val backdropPath: List<String>? = null,
+    @SerialName("backdrop_path") val backdropPath: List<String?>? = null,
     @SerialName("youtube_trailer") val youtubeTrailer: String? = null,
     @SerialName("episode_run_time") val episodeRunTime: String? = null,
     @SerialName("category_id") val categoryId: String? = null

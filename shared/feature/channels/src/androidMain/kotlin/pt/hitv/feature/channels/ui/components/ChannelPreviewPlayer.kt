@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,16 +47,14 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CancellationException
-import pt.hitv.core.designsystem.R
 import pt.hitv.core.model.Channel
 import pt.hitv.feature.channels.StreamViewModel
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.designsystem.theme.getThemeColors
-import pt.hitv.core.common.media.MediaSourceFactory
-import pt.hitv.core.common.media.PlayerConfigFactory
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.DefaultLoadControl
 
 private const val TAG = "ChannelPreviewPlayer"
 private const val PREVIEW_VOLUME = 0.5f
@@ -106,17 +103,14 @@ fun ChannelPreviewPlayer(
     if (formatsLoaded) {
         DisposableEffect(channel.streamUrl, userOutputFormats) {
             val player = ExoPlayer.Builder(context)
-                .setLoadControl(PlayerConfigFactory.createPreviewLoadControl())
+                .setLoadControl(
+                    DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(5_000, 15_000, 1_000, 2_000)
+                        .build()
+                )
                 .build().apply {
-                    val mediaSource = MediaSourceFactory.createMediaSource(
-                        context,
-                        channel.streamUrl ?: "",
-                        userOutputFormats,
-                        channel.licenseKey,
-                        preferencesHelper,
-                        skipNetworkDetection = true
-                    )
-                    setMediaSource(mediaSource)
+                    val mediaItem = MediaItem.fromUri(channel.streamUrl ?: "")
+                    setMediaItem(mediaItem)
                     prepare()
                     playWhenReady = true
                     volume = when {
@@ -199,7 +193,7 @@ fun ChannelPreviewPlayer(
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             CircularProgressIndicator(modifier = Modifier.size(48.dp), color = themeColors.primaryColor, trackColor = Color.White.copy(alpha = 0.2f))
-                            Text(text = stringResource(R.string.loading_preview_video), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(text = "Loading preview\u2026", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }

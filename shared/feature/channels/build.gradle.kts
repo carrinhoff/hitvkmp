@@ -8,13 +8,14 @@ kotlin {
             implementation(project(":shared:core:data"))
             implementation(project(":shared:core:ui"))
             implementation(project(":shared:epg"))
-            implementation(libs.paging.compose)
+            implementation(libs.findLibrary("paging-compose").get())
+            implementation(libs.findLibrary("coil-compose").get())
         }
         androidMain.dependencies {
-            implementation(libs.androidx.tv.foundation)
-            implementation(libs.androidx.tv.material)
-            implementation(libs.androidx.media3.exoplayer)
-            implementation(libs.androidx.media3.ui)
+            implementation(libs.findLibrary("androidx-tv-foundation").get())
+            implementation(libs.findLibrary("androidx-tv-material").get())
+            implementation(libs.findLibrary("androidx-media3-exoplayer").get())
+            implementation(libs.findLibrary("androidx-media3-ui").get())
         }
     }
 }

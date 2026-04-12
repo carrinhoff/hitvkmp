@@ -21,6 +21,7 @@ class KmpFeatureConventionPlugin : Plugin<Project> {
                     implementation(project.libs.findLibrary("voyager-screenModel").get())
                     implementation(project.libs.findLibrary("voyager-koin").get())
                     implementation(project.libs.findLibrary("voyager-transitions").get())
+                    implementation(project.libs.findLibrary("kotlinx-datetime").get())
                 }
             }
         }

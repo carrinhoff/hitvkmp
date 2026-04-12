@@ -27,14 +27,12 @@ import pt.hitv.epg.domain.EPGEvent
 object EpgParser {
 
     private val CHANNEL_REGEX = Regex(
-        """<channel\s+id="([^"]*)">(.*?)</channel>""",
-        RegexOption.DOT_MATCHES_ALL
+        """<channel\s+id="([^"]*)">([\s\S]*?)</channel>"""
     )
     private val DISPLAY_NAME_REGEX = Regex("""<display-name[^>]*>(.*?)</display-name>""")
     private val ICON_REGEX = Regex("""<icon\s+src="([^"]*)"[^/]*/?>""")
     private val PROGRAMME_REGEX = Regex(
-        """<programme\s+start="([^"]*)"\s+stop="([^"]*)"\s+channel="([^"]*)"[^>]*>(.*?)</programme>""",
-        RegexOption.DOT_MATCHES_ALL
+        """<programme\s+start="([^"]*)"\s+stop="([^"]*)"\s+channel="([^"]*)"[^>]*>([\s\S]*?)</programme>"""
     )
     private val TITLE_REGEX = Regex("""<title[^>]*>(.*?)</title>""")
     private val DESC_REGEX = Regex("""<desc[^>]*>(.*?)</desc>""")

@@ -41,7 +41,8 @@ data class StreamUiState(
     val selectedPosition: String? = null,
     val fetchedChannel: Channel? = null,
     val lastClickedItemId: String? = null,
-    val lastClickedItemPosition: Int = -1
+    val lastClickedItemPosition: Int = -1,
+    val categoryCounts: Map<String, Int> = emptyMap()
 )
 
 /**
@@ -182,6 +183,20 @@ class StreamViewModel(
     suspend fun getTotalChannelCount(): Int = repository.getTotalChannelCount()
     suspend fun getCategoryChannelCount(categoryId: String): Int = repository.getCategoryChannelCount(categoryId)
 
+    fun fetchCategoryCounts() {
+        viewModelScope.launch {
+            try {
+                val totalCount = getTotalChannelCount()
+                _uiState.update { it.copy(categoryCounts = it.categoryCounts + (CHANNEL_FILTER_ALL to totalCount)) }
+
+                _uiState.value.categories.forEach { category ->
+                    val count = getCategoryChannelCount(category.categoryId.toString())
+                    _uiState.update { it.copy(categoryCounts = it.categoryCounts + (category.categoryId.toString() to count)) }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     fun fetchChannelsFromDB() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -209,10 +224,8 @@ class StreamViewModel(
             try {
                 toggleFavoriteChannelUseCase(channel)
                 getFavorites()
-                val isRemoving = channel.isFavorite
-                if (isRemoving && isFavoritesFilterActive) {
-                    _refreshPagingEvent.emit(Unit)
-                }
+                // Always refresh paging to update the star icon
+                _refreshPagingEvent.emit(Unit)
             } catch (e: Exception) { }
         }
     }

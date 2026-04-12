@@ -48,9 +48,9 @@ class CategoryPreferenceRepositoryImpl(
                         categoryId = category.categoryId.toString(),
                         categoryName = category.categoryName,
                         contentType = ContentType.CHANNELS,
-                        isPinned = category.isPinned,
-                        isHidden = category.isHidden,
-                        isDefault = category.isDefault
+                        isPinned = category.isPinned != 0L,
+                        isHidden = category.isHidden != 0L,
+                        isDefault = category.isDefault != 0L
                     )
                 )
             }
@@ -62,9 +62,9 @@ class CategoryPreferenceRepositoryImpl(
                         categoryId = category.categoryId.toString(),
                         categoryName = category.categoryName,
                         contentType = ContentType.MOVIES,
-                        isPinned = category.isPinned,
-                        isHidden = category.isHidden,
-                        isDefault = category.isDefault
+                        isPinned = category.isPinned != 0L,
+                        isHidden = category.isHidden != 0L,
+                        isDefault = category.isDefault != 0L
                     )
                 )
             }
@@ -76,9 +76,9 @@ class CategoryPreferenceRepositoryImpl(
                         categoryId = category.categoryId.toString(),
                         categoryName = category.categoryName,
                         contentType = ContentType.SERIES,
-                        isPinned = category.isPinned,
-                        isHidden = category.isHidden,
-                        isDefault = category.isDefault
+                        isPinned = category.isPinned != 0L,
+                        isHidden = category.isHidden != 0L,
+                        isDefault = category.isDefault != 0L
                     )
                 )
             }
@@ -90,9 +90,9 @@ class CategoryPreferenceRepositoryImpl(
                         categoryId = "$CUSTOM_GROUP_PREFIX${customGroup.groupId}",
                         categoryName = customGroup.groupName,
                         contentType = ContentType.CHANNELS,
-                        isPinned = customGroup.isPinned,
-                        isHidden = customGroup.isHidden,
-                        isDefault = customGroup.isDefault
+                        isPinned = customGroup.isPinned != 0L,
+                        isHidden = customGroup.isHidden != 0L,
+                        isDefault = customGroup.isDefault != 0L
                     )
                 )
             }
@@ -103,15 +103,16 @@ class CategoryPreferenceRepositoryImpl(
 
     override suspend fun updateCategoryPinStatus(categoryId: String, contentType: ContentType, isPinned: Boolean) {
         withContext(Dispatchers.IO) {
+            val isPinnedLong = if (isPinned) 1L else 0L
             if (categoryId.startsWith(CUSTOM_GROUP_PREFIX)) {
                 val groupId = categoryId.removePrefix(CUSTOM_GROUP_PREFIX).toLong()
-                customGroupQueries.updateGroupPinStatus(isPinned, groupId)
+                customGroupQueries.updateGroupPinStatus(isPinnedLong, groupId)
             } else {
-                val catId = categoryId.toInt()
+                val catId = categoryId.toLong()
                 when (contentType) {
-                    ContentType.CHANNELS -> categoryQueries.updatePinStatus(isPinned, catId, userId)
-                    ContentType.MOVIES -> categoryVodQueries.updatePinStatus(isPinned, catId, userId)
-                    ContentType.SERIES -> categoryTvShowQueries.updatePinStatus(isPinned, catId, userId)
+                    ContentType.CHANNELS -> categoryQueries.updatePinStatus(isPinnedLong, catId, userId.toLong())
+                    ContentType.MOVIES -> categoryVodQueries.updatePinStatus(isPinnedLong, catId, userId.toLong())
+                    ContentType.SERIES -> categoryTvShowQueries.updatePinStatus(isPinnedLong, catId, userId.toLong())
                 }
             }
         }
@@ -119,15 +120,16 @@ class CategoryPreferenceRepositoryImpl(
 
     override suspend fun updateCategoryHideStatus(categoryId: String, contentType: ContentType, isHidden: Boolean) {
         withContext(Dispatchers.IO) {
+            val isHiddenLong = if (isHidden) 1L else 0L
             if (categoryId.startsWith(CUSTOM_GROUP_PREFIX)) {
                 val groupId = categoryId.removePrefix(CUSTOM_GROUP_PREFIX).toLong()
-                customGroupQueries.updateGroupHideStatus(isHidden, groupId)
+                customGroupQueries.updateGroupHideStatus(isHiddenLong, groupId)
             } else {
-                val catId = categoryId.toInt()
+                val catId = categoryId.toLong()
                 when (contentType) {
-                    ContentType.CHANNELS -> categoryQueries.updateHideStatus(isHidden, catId, userId)
-                    ContentType.MOVIES -> categoryVodQueries.updateHideStatus(isHidden, catId, userId)
-                    ContentType.SERIES -> categoryTvShowQueries.updateHideStatus(isHidden, catId, userId)
+                    ContentType.CHANNELS -> categoryQueries.updateHideStatus(isHiddenLong, catId, userId.toLong())
+                    ContentType.MOVIES -> categoryVodQueries.updateHideStatus(isHiddenLong, catId, userId.toLong())
+                    ContentType.SERIES -> categoryTvShowQueries.updateHideStatus(isHiddenLong, catId, userId.toLong())
                 }
             }
         }
@@ -135,20 +137,22 @@ class CategoryPreferenceRepositoryImpl(
 
     override suspend fun updateAllCategoriesHideStatus(contentType: ContentType, isHidden: Boolean) {
         withContext(Dispatchers.IO) {
+            val isHiddenLong = if (isHidden) 1L else 0L
             when (contentType) {
-                ContentType.CHANNELS -> categoryQueries.updateAllHideStatus(isHidden, userId)
-                ContentType.MOVIES -> categoryVodQueries.updateAllHideStatus(isHidden, userId)
-                ContentType.SERIES -> categoryTvShowQueries.updateAllHideStatus(isHidden, userId)
+                ContentType.CHANNELS -> categoryQueries.updateAllHideStatus(isHiddenLong, userId.toLong())
+                ContentType.MOVIES -> categoryVodQueries.updateAllHideStatus(isHiddenLong, userId.toLong())
+                ContentType.SERIES -> categoryTvShowQueries.updateAllHideStatus(isHiddenLong, userId.toLong())
             }
         }
     }
 
     override suspend fun updateAllCategoriesPinStatus(contentType: ContentType, isPinned: Boolean) {
         withContext(Dispatchers.IO) {
+            val isPinnedLong = if (isPinned) 1L else 0L
             when (contentType) {
-                ContentType.CHANNELS -> categoryQueries.updateAllPinStatus(isPinned, userId)
-                ContentType.MOVIES -> categoryVodQueries.updateAllPinStatus(isPinned, userId)
-                ContentType.SERIES -> categoryTvShowQueries.updateAllPinStatus(isPinned, userId)
+                ContentType.CHANNELS -> categoryQueries.updateAllPinStatus(isPinnedLong, userId.toLong())
+                ContentType.MOVIES -> categoryVodQueries.updateAllPinStatus(isPinnedLong, userId.toLong())
+                ContentType.SERIES -> categoryTvShowQueries.updateAllPinStatus(isPinnedLong, userId.toLong())
             }
         }
     }
@@ -158,23 +162,23 @@ class CategoryPreferenceRepositoryImpl(
             if (categoryId.startsWith(CUSTOM_GROUP_PREFIX)) {
                 val groupId = categoryId.removePrefix(CUSTOM_GROUP_PREFIX).toLong()
                 customGroupQueries.clearAllDefaults()
-                customGroupQueries.updateGroupDefaultStatus(true, groupId)
-                categoryQueries.clearAllDefaults(userId)
+                customGroupQueries.updateGroupDefaultStatus(1L, groupId)
+                categoryQueries.clearAllDefaults(userId.toLong())
             } else {
-                val catId = categoryId.toInt()
+                val catId = categoryId.toLong()
                 when (contentType) {
                     ContentType.CHANNELS -> {
-                        categoryQueries.clearAllDefaults(userId)
-                        categoryQueries.updateDefaultStatus(true, catId, userId)
+                        categoryQueries.clearAllDefaults(userId.toLong())
+                        categoryQueries.updateDefaultStatus(1L, catId, userId.toLong())
                         customGroupQueries.clearAllDefaults()
                     }
                     ContentType.MOVIES -> {
-                        categoryVodQueries.clearAllDefaults(userId)
-                        categoryVodQueries.updateDefaultStatus(true, catId, userId)
+                        categoryVodQueries.clearAllDefaults(userId.toLong())
+                        categoryVodQueries.updateDefaultStatus(1L, catId, userId.toLong())
                     }
                     ContentType.SERIES -> {
-                        categoryTvShowQueries.clearAllDefaults(userId)
-                        categoryTvShowQueries.updateDefaultStatus(true, catId, userId)
+                        categoryTvShowQueries.clearAllDefaults(userId.toLong())
+                        categoryTvShowQueries.updateDefaultStatus(1L, catId, userId.toLong())
                     }
                 }
             }
@@ -185,23 +189,23 @@ class CategoryPreferenceRepositoryImpl(
         withContext(Dispatchers.IO) {
             when (contentType) {
                 ContentType.CHANNELS -> {
-                    categoryQueries.clearAllDefaults(userId)
+                    categoryQueries.clearAllDefaults(userId.toLong())
                     customGroupQueries.clearAllDefaults()
                 }
-                ContentType.MOVIES -> categoryVodQueries.clearAllDefaults(userId)
-                ContentType.SERIES -> categoryTvShowQueries.clearAllDefaults(userId)
+                ContentType.MOVIES -> categoryVodQueries.clearAllDefaults(userId.toLong())
+                ContentType.SERIES -> categoryTvShowQueries.clearAllDefaults(userId.toLong())
             }
         }
     }
 
     override suspend fun resetAllPreferences() {
         withContext(Dispatchers.IO) {
-            categoryQueries.updateAllPinStatus(false, userId)
-            categoryQueries.updateAllHideStatus(false, userId)
-            categoryVodQueries.updateAllPinStatus(false, userId)
-            categoryVodQueries.updateAllHideStatus(false, userId)
-            categoryTvShowQueries.updateAllPinStatus(false, userId)
-            categoryTvShowQueries.updateAllHideStatus(false, userId)
+            categoryQueries.updateAllPinStatus(0L, userId.toLong())
+            categoryQueries.updateAllHideStatus(0L, userId.toLong())
+            categoryVodQueries.updateAllPinStatus(0L, userId.toLong())
+            categoryVodQueries.updateAllHideStatus(0L, userId.toLong())
+            categoryTvShowQueries.updateAllPinStatus(0L, userId.toLong())
+            categoryTvShowQueries.updateAllHideStatus(0L, userId.toLong())
         }
     }
 }

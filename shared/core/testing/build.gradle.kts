@@ -9,9 +9,9 @@ kotlin {
             implementation(project(":shared:core:common"))
             implementation(project(":shared:core:domain"))
             implementation(project(":shared:core:database"))
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.paging.common)
+            implementation(libs.findLibrary("kotlinx-coroutines-test").get())
+            implementation(libs.findLibrary("kotlinx-datetime").get())
+            implementation(libs.findLibrary("paging-common").get())
             implementation(kotlin("test"))
         }
     }

@@ -7,11 +7,12 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":shared:core:data"))
             implementation(project(":shared:core:ui"))
-            implementation(libs.paging.compose)
+            implementation(libs.findLibrary("paging-compose").get())
+            implementation(libs.findLibrary("coil-compose").get())
         }
         androidMain.dependencies {
-            implementation(libs.androidx.tv.foundation)
-            implementation(libs.androidx.tv.material)
+            implementation(libs.findLibrary("androidx-tv-foundation").get())
+            implementation(libs.findLibrary("androidx-tv-material").get())
         }
     }
 }

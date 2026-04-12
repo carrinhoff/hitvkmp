@@ -32,7 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
-import androidx.compose.runtime.snapshots.SnapshotStateSet
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +64,7 @@ fun ChannelListItem(
     modifier: Modifier = Modifier,
     shouldRequestFocus: Boolean = false,
     epgCache: SnapshotStateMap<String, ChannelEpgInfo?>,
-    epgLoadingSet: SnapshotStateSet<String>,
+    epgLoadingSet: SnapshotStateList<String>,
     isExpanded: Boolean = false,
     isCompact: Boolean = false,
     viewModel: StreamViewModel
@@ -125,7 +125,7 @@ fun ChannelListItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Channel Logo placeholder
+            // Channel Logo — loads actual image via Coil, with placeholder
             Card(
                 modifier = Modifier.size(logoSize),
                 shape = RoundedCornerShape(8.dp),
@@ -137,14 +137,24 @@ fun ChannelListItem(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Image loading is platform-specific; use Coil on Android, etc.
-                    // For now, show channel name initial as placeholder
-                    Text(
-                        text = channel.name?.firstOrNull()?.uppercase() ?: "?",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeColors.textColor.copy(alpha = 0.5f)
-                    )
+                    if (!channel.streamIcon.isNullOrBlank()) {
+                        coil3.compose.AsyncImage(
+                            model = channel.streamIcon,
+                            contentDescription = channel.name,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        // Placeholder with channel name initial
+                        Text(
+                            text = "#${channel.name?.firstOrNull()?.uppercase() ?: ""}",
+                            fontSize = if (isCompact) 14.sp else 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColors.textColor.copy(alpha = 0.5f)
+                        )
+                    }
 
                     if (channel.isFavorite) {
                         Box(

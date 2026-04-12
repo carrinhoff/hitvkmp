@@ -45,6 +45,8 @@ class UserSessionManager(
      */
     fun switchToUser(userId: Int) {
         preferencesHelper.setStoredIntTag("userId", userId)
+        // Reset initial sync flag so the new user's data gets synced
+        preferencesHelper.setStoredBoolean("initial_sync_complete", false)
         dataStore.updateUserId(userId)
     }
 

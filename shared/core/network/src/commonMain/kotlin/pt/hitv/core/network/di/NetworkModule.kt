@@ -8,7 +8,6 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.logging.SIMPLE
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
-import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import pt.hitv.core.network.api.M3uDownloadService
 import pt.hitv.core.network.api.MovieApiService
@@ -65,7 +64,7 @@ val networkModule = module {
         MovieRemoteDataSource(
             movieApiService = get(),
             preferencesHelper = get(),
-            tmdbApiKey = getOrNull(named("tmdbApiKey")) ?: ""
+            tmdbApiKey = "37b4a8369f4716a437da20760e89edf3"
         )
     }
     single { TvShowRemoteDataSource(get(), get()) }

@@ -6,8 +6,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import pt.hitv.core.common.Resources
-import pt.hitv.core.database.entity.EntityCategoryVod
-import pt.hitv.core.database.entity.EntityMovie
 import pt.hitv.core.domain.repositories.MovieRepository
 import pt.hitv.core.model.Category
 import pt.hitv.core.model.CategoryWithMovie
@@ -115,11 +113,11 @@ class FakeMovieRepository : MovieRepository {
         }
     }
 
-    override suspend fun insertCategoriesMovies(entitiesCategoryVod: ArrayList<EntityCategoryVod>) {
+    override suspend fun insertCategoriesMovies(entitiesCategoryVod: ArrayList<Any>) {
         // No-op for fake
     }
 
-    override suspend fun insertMovies(entitiesMovies: ArrayList<EntityMovie>) {
+    override suspend fun insertMovies(entitiesMovies: ArrayList<Any>) {
         // No-op for fake
     }
 

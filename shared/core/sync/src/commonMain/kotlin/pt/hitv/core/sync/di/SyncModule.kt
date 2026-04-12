@@ -4,6 +4,7 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 import pt.hitv.core.sync.SyncManager
 import pt.hitv.core.sync.SyncManagerImpl
+import pt.hitv.core.sync.SyncStateManager
 
 /**
  * Platform-specific Koin module for sync scheduling.
@@ -12,8 +13,17 @@ import pt.hitv.core.sync.SyncManagerImpl
 expect val syncPlatformModule: Module
 
 /**
- * Common sync module that provides SyncManager using the platform scheduler.
+ * Common sync module that provides SyncManager and SyncStateManager.
  */
 val syncModule: Module = module {
-    single<SyncManager> { SyncManagerImpl(syncScheduler = get()) }
+    single { SyncStateManager() }
+    single<SyncManager> {
+        SyncManagerImpl(
+            syncScheduler = get(),
+            streamRepository = get(),
+            movieRepository = get(),
+            tvShowRepository = get(),
+            preferencesHelper = get()
+        )
+    }
 }

@@ -72,12 +72,12 @@ class MovieRepositoryImpl(
                         database.transaction {
                             categories.forEach { category ->
                                 categoryVodQueries.insertOrReplace(
-                                    categoryId = category.categoryId,
+                                    categoryId = category.categoryId.toLong(),
                                     categoryName = category.categoryName,
-                                    userId = userId,
-                                    isPinned = false,
-                                    isHidden = false,
-                                    isDefault = false
+                                    userId = userId.toLong(),
+                                    isPinned = 0L,
+                                    isHidden = 0L,
+                                    isDefault = 0L
                                 )
                             }
 
@@ -91,13 +91,13 @@ class MovieRepositoryImpl(
                                     added = movie.added,
                                     categoryCreatorId = movie.categoryId ?: "",
                                     containerExtension = movie.containerExtension,
-                                    isFavorite = false,
-                                    userId = userId,
-                                    lastViewedTimestamp = 0,
+                                    isFavorite = 0L,
+                                    userId = userId.toLong(),
+                                    lastViewedTimestamp = 0L,
                                     lastUpdated = now,
                                     lastSeen = now,
                                     contentHash = null,
-                                    syncVersion = 1
+                                    syncVersion = 1L
                                 )
                             }
                         }
@@ -118,8 +118,8 @@ class MovieRepositoryImpl(
 
     override suspend fun saveFavoriteMovie(movie: Movie) {
         val currentStatus = movieQueries.selectFavoriteStatus(movie.streamId, userId.toLong())
-            .executeAsOneOrNull()?.isFavorite ?: false
-        movieQueries.updateFavorite(!currentStatus, movie.streamId, userId.toLong())
+            .executeAsOneOrNull() ?: 0L
+        movieQueries.updateFavorite(if (currentStatus != 0L) 0L else 1L, movie.streamId, userId.toLong())
     }
 
     override suspend fun getFavoritesMovie(): Flow<List<Movie>> {
@@ -202,7 +202,7 @@ class MovieRepositoryImpl(
                 .executeAsList()
                 .map { it.toCategory() }
             categories.mapNotNull { category ->
-                val movies = movieQueries.selectByCategoryLimited(userId.toLong(), category.categoryId.toString(), 100)
+                val movies = movieQueries.selectByCategoryLimited(userId.toLong(), category.categoryId.toString(), 100L)
                     .executeAsList()
                     .map { it.toMovie() }
                 if (movies.isNotEmpty()) {
@@ -220,28 +220,28 @@ class MovieRepositoryImpl(
         return movieRemoteDataSource.getVodInfo(username, password, vodId).mapData { it.asExternalModel() }
     }
 
-    override suspend fun insertCategoriesMovies(categories: List<Any>) {
+    override suspend fun insertCategoriesMovies(entitiesCategoryVod: ArrayList<Any>) {
         // Categories are inserted via fetchMoviesData transaction
     }
 
-    override suspend fun insertMovies(movies: List<Any>) {
+    override suspend fun insertMovies(entitiesMovies: ArrayList<Any>) {
         // Movies are inserted via fetchMoviesData transaction
     }
 
     override suspend fun insertMovieInfo(movieInfo: MovieInfoResponse) {
         try {
             movieInfoQueries.insertMovieData(
-                streamId = movieInfo.movieData.streamId,
+                streamId = movieInfo.movieData.streamId.toLong(),
                 name = movieInfo.movieData.name,
                 added = movieInfo.movieData.added,
-                category_id = movieInfo.movieData.categoryId,
+                category_id = movieInfo.movieData.categoryId.toLong(),
                 container_extension = movieInfo.movieData.containerExtension,
                 custom_sid = movieInfo.movieData.customSid,
                 direct_source = movieInfo.movieData.directSource,
-                userId = userId
+                userId = userId.toLong()
             )
             movieInfoQueries.insertMovieInfo(
-                streamIdCreator = movieInfo.movieData.streamId,
+                streamIdCreator = movieInfo.movieData.streamId.toLong(),
                 kinopoisk_url = movieInfo.info.kinopoiskUrl,
                 tmdb_id = movieInfo.info.tmdbId,
                 name = movieInfo.info.name,
@@ -266,8 +266,8 @@ class MovieRepositoryImpl(
                 duration = movieInfo.info.duration,
                 bitrate = movieInfo.info.bitrate,
                 rating = movieInfo.info.rating,
-                userId = userId,
-                playbackPosition = 0
+                userId = userId.toLong(),
+                playbackPosition = 0L
             )
         } catch (e: Exception) {
             throw e
@@ -276,14 +276,14 @@ class MovieRepositoryImpl(
 
     override suspend fun getMovieInfoCached(streamId: String): Resources<CachedMovieInfo?> {
         return try {
-            val result = movieInfoQueries.selectMovieDataWithInfo(streamId.toInt(), userId)
+            val result = movieInfoQueries.selectMovieDataWithInfo(streamId.toLong(), userId.toLong())
                 .executeAsOneOrNull()
             if (result != null) {
                 val movieData = MovieData(
-                    streamId = result.streamId,
+                    streamId = result.streamId.toInt(),
                     name = result.name,
                     added = result.added,
-                    categoryId = result.category_id,
+                    categoryId = result.category_id.toInt(),
                     containerExtension = result.container_extension,
                     customSid = result.custom_sid,
                     directSource = result.direct_source
@@ -312,12 +312,11 @@ class MovieRepositoryImpl(
                     durationSecs = result.duration_secs,
                     duration = result.duration,
                     bitrate = result.bitrate,
-                    rating = result.rating_
+                    rating = result.rating
                 )
                 val cached = CachedMovieInfo(
                     movieData = movieData,
-                    info = info,
-                    playbackPosition = result.playbackPosition
+                    info = info
                 )
                 Resources.Success(cached)
             } else {
@@ -344,13 +343,12 @@ class MovieRepositoryImpl(
     override suspend fun getMoviesByCategory(categoryId: String, limit: Int): List<Movie> {
         return withContext(Dispatchers.IO) {
             try {
-                val entities = when (categoryId) {
-                    MOVIE_FILTER_ALL -> movieQueries.selectAllLimited(userId.toLong(), limit.toLong()).executeAsList()
-                    MOVIE_FILTER_FAVORITES -> movieQueries.selectFavorites(userId.toLong()).executeAsList().take(limit)
-                    MOVIE_FILTER_RECENTLY_VIEWED -> movieQueries.selectRecentlyViewed(userId.toLong()).executeAsList().take(limit)
-                    else -> movieQueries.selectByCategoryLimited(userId.toLong(), categoryId, limit.toLong()).executeAsList()
+                when (categoryId) {
+                    MOVIE_FILTER_ALL -> movieQueries.selectAllLimited(userId.toLong(), limit.toLong()).executeAsList().map { it.toMovie() }
+                    MOVIE_FILTER_FAVORITES -> movieQueries.selectFavorites(userId.toLong()).executeAsList().take(limit).map { it.toMovie() }
+                    MOVIE_FILTER_RECENTLY_VIEWED -> movieQueries.selectRecentlyViewed(userId.toLong()).executeAsList().take(limit).map { it.toMovie() }
+                    else -> movieQueries.selectByCategoryLimited(userId.toLong(), categoryId, limit.toLong()).executeAsList().map { it.toMovie() }
                 }
-                entities.map { it.toMovie() }
             } catch (e: Exception) {
                 emptyList()
             }
@@ -360,7 +358,7 @@ class MovieRepositoryImpl(
     override suspend fun updateMoviePlaybackPosition(streamId: Int, position: Long) {
         withContext(Dispatchers.IO) {
             try {
-                movieInfoQueries.updatePlaybackPosition(position, streamId, userId)
+                movieInfoQueries.updatePlaybackPosition(position, streamId.toLong(), userId.toLong())
             } catch (_: Exception) {
             }
         }
@@ -369,8 +367,8 @@ class MovieRepositoryImpl(
     override suspend fun getMoviePlaybackPosition(streamId: Int): Long? {
         return withContext(Dispatchers.IO) {
             try {
-                movieInfoQueries.selectPlaybackPosition(streamId, userId)
-                    .executeAsOneOrNull()?.playbackPosition
+                movieInfoQueries.selectPlaybackPosition(streamId.toLong(), userId.toLong())
+                    .executeAsOneOrNull()
             } catch (e: Exception) {
                 null
             }
@@ -387,7 +385,7 @@ class MovieRepositoryImpl(
         return networkBoundResourceWithMapper<Any?, NetworkMovieInfoResponse>(
             query = {
                 flow {
-                    val cached = movieInfoQueries.selectMovieDataWithInfo(vodId.toIntOrNull() ?: 0, userId)
+                    val cached = movieInfoQueries.selectMovieDataWithInfo(vodId.toLongOrNull() ?: 0L, userId.toLong())
                         .executeAsOneOrNull()
                     emit(cached)
                 }
@@ -444,7 +442,7 @@ class MovieRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 val ftsQuery = SearchUtils.createFtsQuery(query)
-                var results = movieQueries.searchFts(ftsQuery, userId.toLong(), limit.toLong(), 0)
+                var results = movieQueries.searchFts(ftsQuery, userId.toLong(), limit.toLong(), 0L)
                     .executeAsList()
 
                 if (results.isEmpty()) {
@@ -509,31 +507,31 @@ private class MoviePagingSource(
         val offset = page * pageSize
 
         return try {
-            val dbMovies = when {
+            val movies: List<Movie> = when {
                 !searchQuery.isNullOrBlank() -> {
                     val ftsQuery = SearchUtils.createFtsQuery(searchQuery)
                     movieQueries.searchFts(ftsQuery, userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toMovie() }
                 }
 
                 categoryId == MOVIE_FILTER_FAVORITES -> {
                     movieQueries.selectFavoritesPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toMovie() }
                 }
 
                 categoryId == MOVIE_FILTER_RECENTLY_VIEWED -> {
                     movieQueries.selectRecentlyViewedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toMovie() }
                 }
 
                 categoryId == MOVIE_FILTER_LAST_ADDED -> {
                     movieQueries.selectLastAddedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toMovie() }
                 }
 
                 categoryId == MOVIE_FILTER_CONTINUE_WATCHING -> {
                     movieQueries.selectContinueWatching(userId.toLong(), pageSize.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toMovie() }
                 }
 
                 categoryId != null && categoryId != MOVIE_FILTER_ALL -> {
@@ -544,7 +542,7 @@ private class MoviePagingSource(
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         pageSize.toLong(), offset.toLong()
-                    ).executeAsList()
+                    ).executeAsList().map { it.toMovie() }
                 }
 
                 else -> {
@@ -555,11 +553,9 @@ private class MoviePagingSource(
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         pageSize.toLong(), offset.toLong()
-                    ).executeAsList()
+                    ).executeAsList().map { it.toMovie() }
                 }
             }
-
-            val movies = dbMovies.map { it.toMovie() }
             PagingSourceLoadResultPage(
                 data = movies,
                 prevKey = if (page == 0) null else page - 1,

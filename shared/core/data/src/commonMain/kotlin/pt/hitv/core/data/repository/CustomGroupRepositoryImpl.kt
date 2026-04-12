@@ -34,7 +34,7 @@ class CustomGroupRepositoryImpl(
 
     override suspend fun createCustomGroup(name: String, icon: String?): Long {
         return withContext(Dispatchers.IO) {
-            val groupCount = customGroupQueries.countGroups().executeAsOne().toInt()
+            val groupCount = customGroupQueries.countGroups().executeAsOne()
             val now = Clock.System.now().toEpochMilliseconds()
             customGroupQueries.insertGroup(
                 groupName = name,
@@ -42,11 +42,11 @@ class CustomGroupRepositoryImpl(
                 createdAt = now,
                 updatedAt = now,
                 sortOrder = groupCount,
-                isPinned = false,
-                isHidden = false,
-                isDefault = false
+                isPinned = 0L,
+                isHidden = 0L,
+                isDefault = 0L
             )
-            customGroupQueries.lastInsertGroupId().executeAsOne()
+            customGroupQueries.lastInsertGroupId().executeAsOne().MAX ?: 0L
         }
     }
 
@@ -56,10 +56,10 @@ class CustomGroupRepositoryImpl(
                 groupName = group.name,
                 groupIcon = group.icon,
                 updatedAt = Clock.System.now().toEpochMilliseconds(),
-                sortOrder = group.sortOrder,
-                isPinned = group.isPinned,
-                isHidden = group.isHidden,
-                isDefault = group.isDefault,
+                sortOrder = group.sortOrder.toLong(),
+                isPinned = if (group.isPinned) 1L else 0L,
+                isHidden = if (group.isHidden) 1L else 0L,
+                isDefault = if (group.isDefault) 1L else 0L,
                 groupId = group.id
             )
         }
@@ -85,10 +85,10 @@ class CustomGroupRepositoryImpl(
                     channelCount = channelCount,
                     createdAt = entity.createdAt,
                     updatedAt = entity.updatedAt,
-                    sortOrder = entity.sortOrder,
-                    isPinned = entity.isPinned,
-                    isHidden = entity.isHidden,
-                    isDefault = entity.isDefault
+                    sortOrder = entity.sortOrder.toInt(),
+                    isPinned = entity.isPinned != 0L,
+                    isHidden = entity.isHidden != 0L,
+                    isDefault = entity.isDefault != 0L
                 )
             }
             emit(groups)
@@ -109,10 +109,10 @@ class CustomGroupRepositoryImpl(
                         channelCount = channelCount,
                         createdAt = it.createdAt,
                         updatedAt = it.updatedAt,
-                        sortOrder = it.sortOrder,
-                        isPinned = it.isPinned,
-                        isHidden = it.isHidden,
-                        isDefault = it.isDefault
+                        sortOrder = it.sortOrder.toInt(),
+                        isPinned = it.isPinned != 0L,
+                        isHidden = it.isHidden != 0L,
+                        isDefault = it.isDefault != 0L
                     )
                 }
             } catch (e: Exception) {
@@ -141,8 +141,8 @@ class CustomGroupRepositoryImpl(
             customGroupQueries.addChannelToGroup(
                 groupId = groupId,
                 channelId = channelId,
-                channelUserId = channelUserId,
-                position = position,
+                channelUserId = channelUserId.toLong(),
+                position = position.toLong(),
                 addedAt = now
             )
         }
@@ -155,8 +155,8 @@ class CustomGroupRepositoryImpl(
                 customGroupQueries.addChannelToGroup(
                     groupId = groupId,
                     channelId = channelId,
-                    channelUserId = userId,
-                    position = index,
+                    channelUserId = userId.toLong(),
+                    position = index.toLong(),
                     addedAt = now
                 )
             }
@@ -190,7 +190,7 @@ class CustomGroupRepositoryImpl(
     override suspend fun isChannelInGroup(groupId: Long, channelId: Long): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                customGroupQueries.isChannelInGroup(groupId, channelId).executeAsOne() != 0L
+                (customGroupQueries.isChannelInGroup(groupId, channelId).executeAsOne() as Long) > 0L
             } catch (e: Exception) {
                 false
             }
@@ -265,6 +265,34 @@ class CustomGroupRepositoryImpl(
         ).flow
     }
 
+    // ========== List-based Channel Queries ==========
+
+    override suspend fun getAllChannelsList(): List<Channel> {
+        return withContext(Dispatchers.IO) {
+            try {
+                customGroupQueries.selectAllChannelsPaged(Long.MAX_VALUE, 0L)
+                    .executeAsList()
+                    .map { it.toChannel() }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    override suspend fun searchAllChannelsList(query: String): List<Channel> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val words = SearchUtils.normalizeSearchWords(query)
+                val likePattern = "%${words.joinToString("%")}%"
+                channelQueries.searchByName(0L, likePattern, Long.MAX_VALUE, 0L)
+                    .executeAsList()
+                    .map { it.toChannel() }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+    }
+
     // ========== Maintenance ==========
 
     override suspend fun cleanupOrphanedChannels(): Int {
@@ -323,7 +351,7 @@ class CustomGroupRepositoryImpl(
                 val words = SearchUtils.normalizeSearchWords(query)
                 val likePattern = "%${words.joinToString("%")}%"
                 // Search across all users' channels
-                val entities = channelQueries.searchByName(0, likePattern, pageSize.toLong(), offset.toLong())
+                val entities = channelQueries.searchByName(0L, likePattern, pageSize.toLong(), offset.toLong())
                     .executeAsList()
                 val channels = entities.map { it.toChannel() }
                 PagingSourceLoadResultPage(

@@ -2,7 +2,6 @@ package pt.hitv.core.domain.repositories
 
 import app.cash.paging.PagingData
 import kotlinx.coroutines.flow.Flow
-import pt.hitv.core.database.entity.*
 import pt.hitv.core.model.*
 import pt.hitv.core.model.seriesInfo.*
 import pt.hitv.core.common.Resources

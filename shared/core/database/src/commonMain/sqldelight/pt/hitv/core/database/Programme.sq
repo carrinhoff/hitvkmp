@@ -4,7 +4,7 @@ CREATE TABLE Programme (
     channel_name TEXT,
     start_time INTEGER NOT NULL,
     end_time INTEGER NOT NULL,
-    userId INTEGER AS Int NOT NULL,
+    userId INTEGER NOT NULL,
     imageUrl TEXT,
     FOREIGN KEY (channel_name, userId) REFERENCES EpgChannel(channel_id, userId) ON DELETE CASCADE
 );
@@ -16,7 +16,7 @@ CREATE TABLE Title (
     title_id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     programme_id INTEGER REFERENCES Programme(id) ON DELETE CASCADE,
-    userId INTEGER AS Int NOT NULL
+    userId INTEGER NOT NULL
 );
 
 CREATE INDEX title_programme_idx ON Title(programme_id);
@@ -26,7 +26,7 @@ CREATE TABLE Description (
     desc_id INTEGER PRIMARY KEY AUTOINCREMENT,
     desc TEXT,
     programme_id INTEGER REFERENCES Programme(id) ON DELETE CASCADE,
-    userId INTEGER AS Int NOT NULL
+    userId INTEGER NOT NULL
 );
 
 CREATE INDEX description_programme_idx ON Description(programme_id);
@@ -117,7 +117,7 @@ INSERT OR REPLACE INTO Programme(channel_name, start_time, end_time, userId, ima
 VALUES (?, ?, ?, ?, ?);
 
 lastInsertProgrammeId:
-SELECT last_insert_rowid();
+SELECT MAX(id) FROM Programme;
 
 insertTitle:
 INSERT OR IGNORE INTO Title(title, programme_id, userId)

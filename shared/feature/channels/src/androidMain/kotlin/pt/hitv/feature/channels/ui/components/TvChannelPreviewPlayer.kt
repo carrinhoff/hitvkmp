@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,9 +30,8 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import pt.hitv.core.common.PreferencesHelper
-import pt.hitv.core.common.media.MediaSourceFactory
-import pt.hitv.core.common.media.PlayerConfigFactory
-import pt.hitv.core.designsystem.R
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.DefaultLoadControl
 import pt.hitv.core.designsystem.theme.getThemeColors
 import pt.hitv.core.model.Channel
 import pt.hitv.feature.channels.StreamViewModel
@@ -81,10 +79,14 @@ fun TvChannelPreviewPlayer(
     if (formatsLoaded) {
         DisposableEffect(channel.streamUrl, userOutputFormats) {
             val player = ExoPlayer.Builder(context)
-                .setLoadControl(PlayerConfigFactory.createPreviewLoadControl())
+                .setLoadControl(
+                    DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(5_000, 15_000, 1_000, 2_000)
+                        .build()
+                )
                 .build().apply {
-                    val mediaSource = MediaSourceFactory.createMediaSource(context, channel.streamUrl ?: "", userOutputFormats, channel.licenseKey, preferencesHelper, skipNetworkDetection = true)
-                    setMediaSource(mediaSource); prepare(); playWhenReady = true
+                    val mediaItem = MediaItem.fromUri(channel.streamUrl ?: "")
+                    setMediaItem(mediaItem); prepare(); playWhenReady = true
                     volume = when { isPipActive -> 0f; isSoundEnabled -> PREVIEW_VOLUME; else -> 0f }
                     repeatMode = Player.REPEAT_MODE_ONE
                     addListener(object : Player.Listener {
@@ -115,7 +117,7 @@ fun TvChannelPreviewPlayer(
             when {
                 errorMessage != null -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { Icon(Icons.Default.Error, "Error", tint = themeColors.primaryColor, modifier = Modifier.size(40.dp)) }
                 playerState == Player.STATE_IDLE || playerState == Player.STATE_BUFFERING -> Box(Modifier.fillMaxSize().background(Color.Black.copy(0.7f)), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(Modifier.size(48.dp), color = themeColors.primaryColor); Text(stringResource(R.string.loading_preview_video), color = Color.White, fontSize = 13.sp) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(Modifier.size(48.dp), color = themeColors.primaryColor); Text("Loading preview\u2026", color = Color.White, fontSize = 13.sp) }
                 }
             }
 

@@ -2,14 +2,11 @@ package pt.hitv.feature.movies.di
 
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import pt.hitv.feature.movies.detail.MovieInfoViewModel
 import pt.hitv.feature.movies.list.MovieViewModel
 
-/**
- * Koin module for the movies feature.
- */
 val moviesFeatureModule: Module = module {
-
-    factory {
+    single {
         MovieViewModel(
             userSessionManager = get(),
             repository = get(),
@@ -17,6 +14,14 @@ val moviesFeatureModule: Module = module {
             getMoviesPagerUseCase = get(),
             searchMoviesUseCase = get(),
             toggleFavoriteMovieUseCase = get()
+        )
+    }
+
+    factory {
+        MovieInfoViewModel(
+            repository = get(),
+            analyticsHelper = get(),
+            preferencesHelper = get()
         )
     }
 }

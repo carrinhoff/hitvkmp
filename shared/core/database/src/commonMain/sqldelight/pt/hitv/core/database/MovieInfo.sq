@@ -1,19 +1,19 @@
 -- MovieData table for movie stream data
 CREATE TABLE MovieData (
-    streamId INTEGER AS Int PRIMARY KEY NOT NULL,
+    streamId INTEGER PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     added REAL NOT NULL,
-    category_id INTEGER AS Int NOT NULL,
+    category_id INTEGER NOT NULL,
     container_extension TEXT NOT NULL,
     custom_sid TEXT,
     direct_source TEXT,
-    userId INTEGER AS Int NOT NULL DEFAULT 0
+    userId INTEGER NOT NULL DEFAULT 0
 );
 
 -- MovieInfo table for movie metadata
 CREATE TABLE MovieInfo (
     movieInfoId INTEGER PRIMARY KEY AUTOINCREMENT,
-    streamIdCreator INTEGER AS Int NOT NULL,
+    streamIdCreator INTEGER NOT NULL,
     kinopoisk_url TEXT,
     tmdb_id TEXT,
     name TEXT,
@@ -38,7 +38,7 @@ CREATE TABLE MovieInfo (
     duration TEXT,
     bitrate TEXT,
     rating TEXT,
-    userId INTEGER AS Int NOT NULL DEFAULT 0,
+    userId INTEGER NOT NULL DEFAULT 0,
     playbackPosition INTEGER NOT NULL DEFAULT 0
 );
 

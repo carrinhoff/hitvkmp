@@ -63,21 +63,21 @@ class TvShowRepositoryImpl(
                 database.transaction {
                     categories.forEach { category ->
                         categoryTvShowQueries.insertOrReplace(
-                            categoryId = category.categoryId,
+                            categoryId = category.categoryId.toLong(),
                             categoryName = category.categoryName,
-                            userId = userId,
-                            isPinned = false,
-                            isHidden = false,
-                            isDefault = false
+                            userId = userId.toLong(),
+                            isPinned = 0L,
+                            isHidden = 0L,
+                            isDefault = 0L
                         )
                     }
 
                     val now = Clock.System.now().toEpochMilliseconds()
                     tvShows.forEach { tvShow ->
                         tvShowQueries.insertOrReplace(
-                            num = tvShow.num,
+                            num = tvShow.num?.toLong(),
                             name = tvShow.name,
-                            series_id = tvShow.seriesId ?: 0,
+                            series_id = tvShow.seriesId?.toLong() ?: 0L,
                             cover = tvShow.cover,
                             plot = tvShow.plot,
                             cast_ = tvShow.cast,
@@ -87,17 +87,17 @@ class TvShowRepositoryImpl(
                             last_modified = tvShow.lastModified,
                             rating = tvShow.rating,
                             rating_5based = tvShow.rating5based,
-                            backdrop_path = tvShow.backdropPath,
+                            backdrop_path = tvShow.backdropPath?.joinToString(","),
                             youtube_trailer = tvShow.youtubeTrailer,
                             episode_run_time = tvShow.episodeRunTime,
                             category_id = tvShow.categoryId ?: "-1",
-                            isFavorite = false,
-                            userId = userId,
-                            lastViewedTimestamp = 0,
+                            isFavorite = 0L,
+                            userId = userId.toLong(),
+                            lastViewedTimestamp = 0L,
                             lastUpdated = now,
                             lastSeen = now,
                             contentHash = null,
-                            syncVersion = 1
+                            syncVersion = 1L
                         )
                     }
                 }
@@ -138,7 +138,7 @@ class TvShowRepositoryImpl(
                                 youtube_trailer = seriesInfo.youtubeTrailer,
                                 episode_run_time = seriesInfo.episodeRunTime,
                                 category_id = seriesInfo.categoryId,
-                                userId = userId
+                                userId = userId.toLong()
                             )
 
                             seriesInfoResponse.episodes?.forEach { (seasonNumberString, episodeList) ->
@@ -154,29 +154,29 @@ class TvShowRepositoryImpl(
                                     seriesInfoQueries.insertSeason(
                                         season_id = apiSeason.id ?: seasonId,
                                         air_date = apiSeason.airDate,
-                                        episode_count = apiSeason.episodeCount,
+                                        episode_count = apiSeason.episodeCount?.toLong(),
                                         name = apiSeason.name,
                                         overview = apiSeason.overview,
-                                        season_number = apiSeason.seasonNumber ?: seasonNumber,
+                                        season_number = (apiSeason.seasonNumber ?: seasonNumber).toLong(),
                                         cover = apiSeason.cover,
                                         cover_big = apiSeason.coverBig,
                                         series_id = seriesId,
-                                        userId = userId
+                                        userId = userId.toLong()
                                     )
 
                                     episodeList.forEach { episode ->
                                         if (episode.id != null) {
                                             seriesInfoQueries.insertEpisode(
                                                 episode_id = episode.id!!,
-                                                episode_num = episode.episodeNum,
+                                                episode_num = episode.episodeNum?.toLong(),
                                                 title = episode.title,
                                                 container_extension = episode.containerExtension,
                                                 custom_sid = episode.customSid,
                                                 added = episode.added,
-                                                season = episode.season,
+                                                season = episode.season?.toLong(),
                                                 direct_source = episode.directSource,
                                                 seasonCreatorId = seasonId,
-                                                userId = userId
+                                                userId = userId.toLong()
                                             )
 
                                             episode.info?.let { episodeInfo ->
@@ -191,8 +191,8 @@ class TvShowRepositoryImpl(
                                                     bitrate = episodeInfo.bitrate,
                                                     rating = episodeInfo.rating,
                                                     season = episodeInfo.season,
-                                                    userId = userId,
-                                                    playbackPosition = 0
+                                                    userId = userId.toLong(),
+                                                    playbackPosition = 0L
                                                 )
                                             }
                                         }
@@ -216,18 +216,18 @@ class TvShowRepositoryImpl(
 
     override suspend fun fetchSeasonsWithEpisodes(seriesId: String): Flow<LinkedHashMap<Season, List<Episode>>> {
         return flow {
-            val dataList = seriesInfoQueries.selectSeasonsWithEpisodes(seriesId, userId)
+            val dataList = seriesInfoQueries.selectSeasonsWithEpisodes(seriesId, userId.toLong())
                 .executeAsList()
 
             val seasonsAndEpisodes: LinkedHashMap<Season, List<Episode>> = linkedMapOf()
             dataList.forEach { data ->
                 val season = Season(
                     airDate = data.airDate,
-                    episodeCount = data.episodeCount?.toString()?.toIntOrNull(),
+                    episodeCount = data.episodeCount?.toInt(),
                     id = data.seasonId,
                     name = data.name,
                     overview = data.overview,
-                    seasonNumber = data.seasonNumber,
+                    seasonNumber = data.seasonNumber.toInt(),
                     cover = data.cover,
                     coverBig = data.coverBig
                 )
@@ -245,13 +245,13 @@ class TvShowRepositoryImpl(
                 )
                 val episode = Episode(
                     id = data.episodeId,
-                    episodeNum = data.episodeNum,
+                    episodeNum = data.episodeNum?.toInt(),
                     title = data.title,
                     containerExtension = data.containerExtension,
                     info = episodeInfo,
                     customSid = "",
                     added = data.added,
-                    season = data.season,
+                    season = data.season?.toInt(),
                     directSource = ""
                 )
                 val episodeList = seasonsAndEpisodes.getOrPut(season) { mutableListOf() }
@@ -265,16 +265,16 @@ class TvShowRepositoryImpl(
 
     override fun fetchSeriesInfo(seriesId: String): Flow<SeriesInfo?> {
         return flow {
-            val entity = seriesInfoQueries.selectSeriesInfo(seriesId, userId)
+            val entity = seriesInfoQueries.selectSeriesInfo(seriesId, userId.toLong())
                 .executeAsOneOrNull()
             emit(entity?.toSeriesInfo())
         }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun saveFavoriteTvShow(tvShow: TvShow) {
-        val currentStatus = tvShowQueries.selectFavoriteStatus(tvShow.seriesId ?: 0, userId.toLong())
-            .executeAsOneOrNull()?.isFavorite ?: false
-        tvShowQueries.updateFavoriteStatus(!currentStatus, tvShow.seriesId ?: 0, userId.toLong())
+        val currentStatus = tvShowQueries.selectFavoriteStatus(tvShow.seriesId.toLong(), userId.toLong())
+            .executeAsOneOrNull() ?: 0L
+        tvShowQueries.updateFavoriteStatus(if (currentStatus != 0L) 0L else 1L, tvShow.seriesId.toLong(), userId.toLong())
     }
 
     override suspend fun getFavoritesTvShow(): Flow<List<TvShow>> {
@@ -289,7 +289,7 @@ class TvShowRepositoryImpl(
     override suspend fun saveRecentlyViewedTvShow(tvShow: TvShow) {
         tvShowQueries.updateLastViewedTimestamp(
             tvShow.lastViewedTimestamp,
-            tvShow.seriesId ?: 0,
+            tvShow.seriesId.toLong(),
             userId.toLong()
         )
     }
@@ -304,11 +304,11 @@ class TvShowRepositoryImpl(
     }
 
     override suspend fun updatePlaybackPosition(id: String, position: Long) {
-        seriesInfoQueries.updateEpisodePlaybackPosition(position, id, userId)
+        seriesInfoQueries.updateEpisodePlaybackPosition(position, id, userId.toLong())
     }
 
     override suspend fun updateEpisodeDuration(id: String, duration: Double) {
-        seriesInfoQueries.updateEpisodeDuration(duration, id, userId)
+        seriesInfoQueries.updateEpisodeDuration(duration, id, userId.toLong())
     }
 
     override suspend fun getSeries(username: String, password: String): Resources<List<TvShow>> {
@@ -325,7 +325,7 @@ class TvShowRepositoryImpl(
                 .executeAsList()
                 .map { it.toCategory() }
             categories.mapNotNull { category ->
-                val tvShows = tvShowQueries.selectByCategoryLimited(userId.toLong(), category.categoryId.toString(), 100)
+                val tvShows = tvShowQueries.selectByCategoryLimited(userId.toLong(), category.categoryId.toString(), 100L)
                     .executeAsList()
                     .map { it.toTvShow() }
                 if (tvShows.isNotEmpty()) {
@@ -374,13 +374,12 @@ class TvShowRepositoryImpl(
     override suspend fun getSeriesByCategory(categoryId: String, limit: Int): List<TvShow> {
         return withContext(Dispatchers.IO) {
             try {
-                val entities = when (categoryId) {
-                    MOVIE_FILTER_ALL -> tvShowQueries.selectAllLimited(userId.toLong(), limit.toLong()).executeAsList()
-                    MOVIE_FILTER_FAVORITES -> tvShowQueries.selectFavorites(userId.toLong()).executeAsList().take(limit)
-                    MOVIE_FILTER_RECENTLY_VIEWED -> tvShowQueries.selectRecentlyViewed(userId.toLong()).executeAsList().take(limit)
-                    else -> tvShowQueries.selectByCategoryLimited(userId.toLong(), categoryId, limit.toLong()).executeAsList()
+                when (categoryId) {
+                    MOVIE_FILTER_ALL -> tvShowQueries.selectAllLimited(userId.toLong(), limit.toLong()).executeAsList().map { it.toTvShow() }
+                    MOVIE_FILTER_FAVORITES -> tvShowQueries.selectFavorites(userId.toLong()).executeAsList().take(limit).map { it.toTvShow() }
+                    MOVIE_FILTER_RECENTLY_VIEWED -> tvShowQueries.selectRecentlyViewed(userId.toLong()).executeAsList().take(limit).map { it.toTvShow() }
+                    else -> tvShowQueries.selectByCategoryLimited(userId.toLong(), categoryId, limit.toLong()).executeAsList().map { it.toTvShow() }
                 }
-                entities.map { it.toTvShow() }
             } catch (e: Exception) {
                 emptyList()
             }
@@ -402,7 +401,7 @@ class TvShowRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 val ftsQuery = SearchUtils.createFtsQuery(query)
-                var results = tvShowQueries.searchFts(ftsQuery, userId.toLong(), limit.toLong(), 0)
+                var results = tvShowQueries.searchFts(ftsQuery, userId.toLong(), limit.toLong(), 0L)
                     .executeAsList()
                 if (results.isEmpty()) {
                     results = tvShowQueries.searchByName(userId.toLong(), "%$query%", limit.toLong())
@@ -484,26 +483,26 @@ private class TvShowPagingSource(
         val offset = page * pageSize
 
         return try {
-            val dbTvShows = when {
+            val tvShows: List<TvShow> = when {
                 !searchQuery.isNullOrBlank() -> {
                     val ftsQuery = SearchUtils.createFtsQuery(searchQuery)
                     tvShowQueries.searchFts(ftsQuery, userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toTvShow() }
                 }
 
                 categoryId == MOVIE_FILTER_FAVORITES -> {
                     tvShowQueries.selectFavoritesPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toTvShow() }
                 }
 
                 categoryId == MOVIE_FILTER_RECENTLY_VIEWED -> {
                     tvShowQueries.selectRecentlyViewedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toTvShow() }
                 }
 
                 categoryId == MOVIE_FILTER_LAST_ADDED -> {
                     tvShowQueries.selectLastAddedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
-                        .executeAsList()
+                        .executeAsList().map { it.toTvShow() }
                 }
 
                 categoryId != null && categoryId != MOVIE_FILTER_ALL -> {
@@ -514,7 +513,7 @@ private class TvShowPagingSource(
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         pageSize.toLong(), offset.toLong()
-                    ).executeAsList()
+                    ).executeAsList().map { it.toTvShow() }
                 }
 
                 else -> {
@@ -525,11 +524,9 @@ private class TvShowPagingSource(
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         sortOrder, isAscLong, sortOrder, isAscLong,
                         pageSize.toLong(), offset.toLong()
-                    ).executeAsList()
+                    ).executeAsList().map { it.toTvShow() }
                 }
             }
-
-            val tvShows = dbTvShows.map { it.toTvShow() }
             PagingSourceLoadResultPage(
                 data = tvShows,
                 prevKey = if (page == 0) null else page - 1,

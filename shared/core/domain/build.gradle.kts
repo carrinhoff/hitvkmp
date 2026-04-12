@@ -7,8 +7,9 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":shared:core:model"))
             implementation(project(":shared:core:common"))
-            implementation(libs.paging.common)
-            implementation(libs.koin.core)
+            implementation(project(":shared:epg"))
+            implementation(libs.findLibrary("paging-common").get())
+            implementation(libs.findLibrary("koin-core").get())
         }
     }
 }

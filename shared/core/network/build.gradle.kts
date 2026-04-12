@@ -9,18 +9,18 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":shared:core:model"))
             implementation(project(":shared:core:common"))
-            implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.ktor.client.logging)
-            implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.findLibrary("ktor-client-core").get())
+            implementation(libs.findLibrary("ktor-client-content-negotiation").get())
+            implementation(libs.findLibrary("ktor-client-logging").get())
+            implementation(libs.findLibrary("ktor-serialization-kotlinx-json").get())
+            implementation(libs.findLibrary("kotlinx-serialization-json").get())
         }
         androidMain.dependencies {
-            implementation(libs.ktor.client.okhttp)
-            implementation(libs.xz)
+            implementation(libs.findLibrary("ktor-client-okhttp").get())
+            implementation(libs.findLibrary("xz").get())
         }
         iosMain.dependencies {
-            implementation(libs.ktor.client.darwin)
+            implementation(libs.findLibrary("ktor-client-darwin").get())
         }
     }
 }

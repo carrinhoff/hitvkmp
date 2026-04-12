@@ -11,13 +11,14 @@ kotlin {
             implementation(project(":shared:core:common"))
             implementation(project(":shared:core:domain"))
             implementation(project(":shared:core:designsystem"))
-            implementation(libs.coil.compose)
-            implementation(libs.paging.compose)
-            implementation(libs.compottie)
+            implementation(libs.findLibrary("coil-compose").get())
+            implementation(libs.findLibrary("kotlinx-datetime").get())
+            implementation(libs.findLibrary("paging-compose").get())
+            implementation(libs.findLibrary("compottie").get())
         }
         androidMain.dependencies {
-            implementation(libs.androidx.tv.foundation)
-            implementation(libs.androidx.tv.material)
+            implementation(libs.findLibrary("androidx-tv-foundation").get())
+            implementation(libs.findLibrary("androidx-tv-material").get())
         }
     }
 }

@@ -33,6 +33,10 @@ interface CustomGroupRepository {
     fun searchAllChannels(query: String): Flow<PagingData<Channel>>
     fun getAllChannels(): Flow<PagingData<Channel>>
 
+    // List-based channel queries (non-paged, for KMP compatibility)
+    suspend fun getAllChannelsList(): List<Channel>
+    suspend fun searchAllChannelsList(query: String): List<Channel>
+
     // Maintenance
     suspend fun cleanupOrphanedChannels(): Int
 }

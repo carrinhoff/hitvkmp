@@ -15,6 +15,14 @@ import pt.hitv.core.data.repository.StreamRepositoryImpl
 import pt.hitv.core.data.repository.TvShowRepositoryImpl
 import pt.hitv.core.domain.manager.ParentalControlManager
 import pt.hitv.core.domain.repositories.AccountManagerRepository
+import pt.hitv.core.domain.usecases.GetChannelsByCategoryUseCase
+import pt.hitv.core.domain.usecases.GetMoviesPagerUseCase
+import pt.hitv.core.domain.usecases.GetSeriesPagerUseCase
+import pt.hitv.core.domain.usecases.SearchMoviesUseCase
+import pt.hitv.core.domain.usecases.SearchSeriesUseCase
+import pt.hitv.core.domain.usecases.ToggleFavoriteChannelUseCase
+import pt.hitv.core.domain.usecases.ToggleFavoriteMovieUseCase
+import pt.hitv.core.domain.usecases.ToggleFavoriteSeriesUseCase
 import pt.hitv.core.domain.repositories.CategoryPreferenceRepository
 import pt.hitv.core.domain.repositories.CustomGroupRepository
 import pt.hitv.core.domain.repositories.MovieRepository
@@ -143,4 +151,15 @@ val dataModule: Module = module {
             parentalControlQueries = get()
         )
     }
+
+    // ==================== Use Cases ====================
+
+    factory { GetChannelsByCategoryUseCase(streamRepository = get()) }
+    factory { GetMoviesPagerUseCase(movieRepository = get()) }
+    factory { GetSeriesPagerUseCase(tvShowRepository = get()) }
+    factory { SearchMoviesUseCase(movieRepository = get()) }
+    factory { SearchSeriesUseCase(tvShowRepository = get()) }
+    factory { ToggleFavoriteChannelUseCase(streamRepository = get()) }
+    factory { ToggleFavoriteMovieUseCase(movieRepository = get()) }
+    factory { ToggleFavoriteSeriesUseCase(tvShowRepository = get()) }
 }

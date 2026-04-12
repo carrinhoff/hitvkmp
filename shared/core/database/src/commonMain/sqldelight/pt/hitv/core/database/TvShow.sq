@@ -1,9 +1,9 @@
 -- TvShow table for TV series
 CREATE TABLE TvShow (
     tvShowId INTEGER PRIMARY KEY AUTOINCREMENT,
-    num INTEGER AS Int,
+    num INTEGER,
     name TEXT,
-    series_id INTEGER AS Int NOT NULL,
+    series_id INTEGER NOT NULL,
     cover TEXT,
     plot TEXT,
     cast_ TEXT,
@@ -17,41 +17,24 @@ CREATE TABLE TvShow (
     youtube_trailer TEXT,
     episode_run_time TEXT,
     category_id TEXT NOT NULL,
-    isFavorite INTEGER AS Boolean NOT NULL DEFAULT 0,
-    userId INTEGER AS Int NOT NULL,
+    isFavorite INTEGER NOT NULL DEFAULT 0,
+    userId INTEGER NOT NULL,
     lastViewedTimestamp INTEGER NOT NULL DEFAULT 0,
     lastUpdated INTEGER NOT NULL DEFAULT 0,
     lastSeen INTEGER NOT NULL DEFAULT 0,
     contentHash TEXT,
-    syncVersion INTEGER AS Int NOT NULL DEFAULT 1
+    syncVersion INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE UNIQUE INDEX tvshow_unique ON TvShow(series_id, category_id, userId);
 
--- FTS4 virtual table for fast text search
+-- FTS4 virtual table for fast text search (standalone, no content sync)
 CREATE VIRTUAL TABLE TvShow_fts USING fts4(
     name,
     series_id,
     nameNormalized,
-    content="TvShow",
     tokenize=unicode61
 );
-
--- Triggers to keep FTS in sync
-CREATE TRIGGER tvshow_fts_insert AFTER INSERT ON TvShow BEGIN
-    INSERT INTO TvShow_fts(docid, name, series_id, nameNormalized)
-    VALUES (new.tvShowId, new.name, new.series_id, REPLACE(REPLACE(REPLACE(LOWER(COALESCE(new.name, '')), ' ', ''), '.', ''), ',', ''));
-END;
-
-CREATE TRIGGER tvshow_fts_delete BEFORE DELETE ON TvShow BEGIN
-    DELETE FROM TvShow_fts WHERE docid = old.tvShowId;
-END;
-
-CREATE TRIGGER tvshow_fts_update BEFORE UPDATE ON TvShow BEGIN
-    DELETE FROM TvShow_fts WHERE docid = old.tvShowId;
-    INSERT INTO TvShow_fts(docid, name, series_id, nameNormalized)
-    VALUES (new.tvShowId, new.name, new.series_id, REPLACE(REPLACE(REPLACE(LOWER(COALESCE(new.name, '')), ' ', ''), '.', ''), ',', ''));
-END;
 
 -- ==================== Queries ====================
 

@@ -13,9 +13,12 @@ kotlin {
             implementation(project(":shared:core:network"))
             implementation(project(":shared:epg"))
             implementation(project(":shared:core:billing"))
-            implementation(libs.paging.common)
-            implementation(libs.firebase.database)
-            implementation(libs.kotlinx.datetime)
+            implementation(libs.findLibrary("paging-common").get())
+            implementation(libs.findLibrary("firebase-database").get())
+            implementation(libs.findLibrary("kotlinx-datetime").get())
+        }
+        androidMain.dependencies {
+            implementation(libs.findLibrary("androidx-security-crypto").get())
         }
     }
 }

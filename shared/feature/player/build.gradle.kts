@@ -8,12 +8,12 @@ kotlin {
             implementation(project(":shared:core:data"))
         }
         androidMain.dependencies {
-            implementation(libs.androidx.media3.exoplayer)
-            implementation(libs.androidx.media3.exoplayer.hls)
-            implementation(libs.androidx.media3.exoplayer.dash)
-            implementation(libs.androidx.media3.exoplayer.smoothstreaming)
-            implementation(libs.androidx.media3.cast)
-            implementation(libs.androidx.media3.ui)
+            implementation(libs.findLibrary("androidx-media3-exoplayer").get())
+            implementation(libs.findLibrary("androidx-media3-exoplayer-hls").get())
+            implementation(libs.findLibrary("androidx-media3-exoplayer-dash").get())
+            implementation(libs.findLibrary("androidx-media3-exoplayer-smoothstreaming").get())
+            implementation(libs.findLibrary("androidx-media3-cast").get())
+            implementation(libs.findLibrary("androidx-media3-ui").get())
         }
     }
 }

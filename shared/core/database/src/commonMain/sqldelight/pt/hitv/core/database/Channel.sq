@@ -6,14 +6,14 @@ CREATE TABLE Channel (
     streamIcon TEXT NOT NULL,
     epgChannelId TEXT,
     categoryCreatorId TEXT NOT NULL,
-    isFavorite INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isFavorite INTEGER NOT NULL DEFAULT 0,
     licenseKey TEXT,
-    userId INTEGER AS Int NOT NULL,
+    userId INTEGER NOT NULL,
     lastViewedTimestamp INTEGER NOT NULL DEFAULT 0,
     lastUpdated INTEGER NOT NULL DEFAULT 0,
     lastSeen INTEGER NOT NULL DEFAULT 0,
     contentHash TEXT,
-    syncVersion INTEGER AS Int NOT NULL DEFAULT 1
+    syncVersion INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE UNIQUE INDEX channel_unique ON Channel(name, streamIcon, categoryCreatorId, userId);

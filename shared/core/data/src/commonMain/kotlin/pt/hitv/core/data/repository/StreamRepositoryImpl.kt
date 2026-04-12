@@ -33,9 +33,10 @@ import pt.hitv.core.database.HitvDatabase
 import pt.hitv.core.domain.manager.ParentalControlManager
 import pt.hitv.core.domain.repositories.StreamRepository
 import pt.hitv.core.model.*
-import pt.hitv.core.model.xml.Tv
 import pt.hitv.core.network.datasource.M3uRemoteDataSource
 import pt.hitv.core.network.datasource.StreamRemoteDataSource
+import pt.hitv.epg.EpgDomainData
+import pt.hitv.epg.EpgParser
 
 class StreamRepositoryImpl(
     private val streamRemoteDataSource: StreamRemoteDataSource,
@@ -75,12 +76,12 @@ class StreamRepositoryImpl(
                 database.transaction {
                     categories.forEach { category ->
                         categoryQueries.insertOrReplace(
-                            categoryId = category.categoryId,
+                            categoryId = category.categoryId.toLong(),
                             categoryName = category.categoryName,
-                            userId = userId,
-                            isPinned = false,
-                            isHidden = false,
-                            isDefault = false
+                            userId = userId.toLong(),
+                            isPinned = 0L,
+                            isHidden = 0L,
+                            isDefault = 0L
                         )
                     }
 
@@ -92,14 +93,14 @@ class StreamRepositoryImpl(
                             streamIcon = liveStream.streamIcon,
                             epgChannelId = liveStream.epgChannelId,
                             categoryCreatorId = liveStream.categoryId.toString(),
-                            isFavorite = false,
+                            isFavorite = 0L,
                             licenseKey = null,
-                            userId = userId,
-                            lastViewedTimestamp = 0,
+                            userId = userId.toLong(),
+                            lastViewedTimestamp = 0L,
                             lastUpdated = now,
                             lastSeen = now,
                             contentHash = null,
-                            syncVersion = 1
+                            syncVersion = 1L
                         )
                     }
                 }
@@ -117,13 +118,13 @@ class StreamRepositoryImpl(
     override suspend fun saveFavoriteChannel(channel: Channel) {
         val categoryId = channel.categoryId?.takeIf { it.isNotBlank() } ?: return
         val currentStatus = channelQueries.selectFavoriteStatus(channel.name ?: "", categoryId, userId.toLong())
-            .executeAsOneOrNull()?.isFavorite ?: false
-        channelQueries.updateFavorite(!currentStatus, channel.name ?: "", userId.toLong(), categoryId)
+            .executeAsOneOrNull() ?: 0L
+        channelQueries.updateFavorite(if (currentStatus != 0L) 0L else 1L, channel.name ?: "", userId.toLong(), categoryId)
     }
 
     override suspend fun getFavoritesChannel(): Flow<List<Channel>> {
         return flow {
-            val channels = channelQueries.selectFavoritesPaged(userId.toLong(), Long.MAX_VALUE, 0)
+            val channels = channelQueries.selectFavoritesPaged(userId.toLong(), Long.MAX_VALUE, 0L)
                 .executeAsList()
                 .map { it.toChannel() }
             emit(channels)
@@ -142,7 +143,7 @@ class StreamRepositoryImpl(
                 val endTime = now + 24 * 60 * 60 * 1000L
                 programmeQueries.selectCategoriesWithEpgCounts(userId.toLong(), now, endTime)
                     .executeAsList()
-                    .map { Category(categoryId = it.categoryId, categoryName = it.categoryName) }
+                    .map { Category(categoryId = it.categoryId.toInt(), categoryName = it.categoryName) }
             } catch (e: Exception) {
                 emptyList()
             }
@@ -172,7 +173,7 @@ class StreamRepositoryImpl(
                 programmeQueries.selectCategoriesWithEpgCounts(userId.toLong(), now, endTime)
                     .executeAsList()
                     .map {
-                        Category(categoryId = it.categoryId, categoryName = it.categoryName) to it.channelCount.toInt()
+                        Category(categoryId = it.categoryId.toInt(), categoryName = it.categoryName) to it.channelCount.toInt()
                     }
             } catch (e: Exception) {
                 emptyList()
@@ -221,14 +222,14 @@ class StreamRepositoryImpl(
             val channelsByCategory = channels.groupBy { it.categoryId ?: "Uncategorized" }
 
             channelsByCategory.keys.forEachIndexed { index, categoryName ->
-                val tempCategoryId = index + 1
+                val tempCategoryId = (index + 1).toLong()
                 categoryQueries.insertOrReplace(
                     categoryId = tempCategoryId,
                     categoryName = categoryName,
-                    userId = userId,
-                    isPinned = false,
-                    isHidden = false,
-                    isDefault = false
+                    userId = userId.toLong(),
+                    isPinned = 0L,
+                    isHidden = 0L,
+                    isDefault = 0L
                 )
             }
 
@@ -246,14 +247,14 @@ class StreamRepositoryImpl(
                         streamIcon = channel.streamIcon ?: "",
                         epgChannelId = channel.epgChannelId,
                         categoryCreatorId = catId.toString(),
-                        isFavorite = false,
+                        isFavorite = 0L,
                         licenseKey = null,
-                        userId = userId,
-                        lastViewedTimestamp = 0,
+                        userId = userId.toLong(),
+                        lastViewedTimestamp = 0L,
                         lastUpdated = now,
                         lastSeen = now,
                         contentHash = null,
-                        syncVersion = 1
+                        syncVersion = 1L
                     )
                 }
             }
@@ -306,24 +307,11 @@ class StreamRepositoryImpl(
                     customGroupQueries = customGroupQueries,
                     userId = userId,
                     categoryId = categoryId,
-                    searchQuery = searchQuery
+                    searchQuery = searchQuery,
+                    parentalControlManager = parentalControlManager
                 )
             }
-        ).flow.map { pagingData ->
-            // Apply parental control filtering for "all" view
-            if (categoryId == null || categoryId == CHANNEL_FILTER_ALL) {
-                val protectedCategoryIds = parentalControlManager.getProtectedCategoryIds(userId)
-                if (protectedCategoryIds.isNotEmpty()) {
-                    pagingData.filter { channel ->
-                        channel.categoryId !in protectedCategoryIds
-                    }
-                } else {
-                    pagingData
-                }
-            } else {
-                pagingData
-            }
-        }
+        ).flow
     }
 
     override suspend fun getTotalChannelCount(): Int {
@@ -377,7 +365,7 @@ class StreamRepositoryImpl(
                 .executeAsList()
                 .map { it.toCategory() }
             categories.mapNotNull { category ->
-                val channels = channelQueries.selectByCategoryLimited(userId.toLong(), category.categoryId.toString(), 100)
+                val channels = channelQueries.selectByCategoryLimited(userId.toLong(), category.categoryId.toString(), 100L)
                     .executeAsList()
                     .map { it.toChannel() }
                 if (channels.isNotEmpty()) {
@@ -391,7 +379,7 @@ class StreamRepositoryImpl(
         epgUrlOverride: String?,
         onChannelProgress: suspend (channelsProcessed: Int, totalChannels: Int) -> Unit,
         onProgrammeProgress: suspend (programmesProcessed: Int, totalProgrammes: Int) -> Unit
-    ): Resources<Tv> {
+    ): Resources<EpgDomainData> {
         if (!epgUrlOverride.isNullOrBlank()) {
             return when (val contentResource = m3uRemoteDataSource.fetchEpgFromUrl(epgUrlOverride)) {
                 is Resources.Success -> {
@@ -399,8 +387,9 @@ class StreamRepositoryImpl(
                     if (xmlContent.isBlank() || !xmlContent.trim().startsWith("<")) {
                         return Resources.Error("Received invalid or non-XML content from EPG source.")
                     }
-                    // TODO: XML parsing for EPG (platform-specific or use xmlutil)
-                    Resources.Error("EPG XML parsing not yet implemented in KMP")
+                    val epgData = EpgParser.parse(xmlContent)
+                    insertEpgDB(epgData, onChannelProgress, onProgrammeProgress)
+                    Resources.Success(epgData)
                 }
                 is Resources.Error -> Resources.Error(contentResource.message)
                 is Resources.Loading -> Resources.Loading()
@@ -408,41 +397,46 @@ class StreamRepositoryImpl(
         } else {
             return when (val result = streamRemoteDataSource.fetchEPG()) {
                 is Resources.Success -> {
-                    insertEpgDB(result.data, onChannelProgress, onProgrammeProgress)
-                    result
+                    val xmlContent = result.data
+                    if (xmlContent.isBlank()) {
+                        return Resources.Error("Empty EPG response from server.")
+                    }
+                    val epgData = EpgParser.parse(xmlContent)
+                    insertEpgDB(epgData, onChannelProgress, onProgrammeProgress)
+                    Resources.Success(epgData)
                 }
-                is Resources.Error -> result
-                is Resources.Loading -> result
+                is Resources.Error -> Resources.Error(result.message)
+                is Resources.Loading -> Resources.Loading()
             }
         }
     }
 
     override suspend fun insertEpgDB(
-        epgList: Tv?,
+        epgList: EpgDomainData?,
         onChannelProgress: suspend (channelsProcessed: Int, totalChannels: Int) -> Unit,
         onProgrammeProgress: suspend (programmesProcessed: Int, totalProgrammes: Int) -> Unit
     ) {
-        val listOfPrograms = epgList?.programme ?: emptyList()
-        val listOfChannels = epgList?.channel ?: emptyList()
+        val epgChannels = epgList?.channels ?: emptyList()
+        val programmesMap = epgList?.programmes ?: emptyMap()
 
-        val totalChannels = listOfChannels.size
-        val totalProgrammes = listOfPrograms.size
+        val totalChannels = epgChannels.size
+        val allProgrammes = programmesMap.values.flatten()
+        val totalProgrammes = allProgrammes.size
 
-        val uniqueCleanedChannels = listOfChannels
-            .filter { !it.id.isNullOrEmpty() }
-            .distinctBy { it.id.trim().lowercase() }
-            .onEach { channel -> channel.id = channel.id.trim().lowercase() }
+        val uniqueCleanedChannels = epgChannels
+            .filter { it.channelID.isNotEmpty() }
+            .distinctBy { it.channelID.trim().lowercase() }
 
-        val cleanedChannelIdsSet = uniqueCleanedChannels.map { it.id }.toSet()
+        val cleanedChannelIdsSet = uniqueCleanedChannels.map { it.channelID.trim().lowercase() }.toSet()
 
         if (uniqueCleanedChannels.isNotEmpty()) {
             database.transaction {
                 uniqueCleanedChannels.forEach { epgChannel ->
                     epgChannelQueries.insertOrReplace(
-                        channel_id = epgChannel.id,
-                        display_name = epgChannel.displayName?.firstOrNull()?.text,
-                        logo = epgChannel.icon?.firstOrNull()?.src,
-                        userId = userId
+                        channel_id = epgChannel.channelID.trim().lowercase(),
+                        display_name = epgChannel.name.ifBlank { null },
+                        logo = epgChannel.imageURL.ifBlank { null },
+                        userId = userId.toLong()
                     )
                 }
             }
@@ -451,44 +445,43 @@ class StreamRepositoryImpl(
 
         var programmesProcessed = 0
         val batchSize = 500
-        val programmeBatches = listOfPrograms.chunked(batchSize)
+
+        // Flatten programmes map into a list of (channelId, event) pairs
+        val programmeEntries = programmesMap.flatMap { (channelId, events) ->
+            events.map { channelId.trim().lowercase() to it }
+        }
+        val programmeBatches = programmeEntries.chunked(batchSize)
 
         for (programmeBatch in programmeBatches) {
             database.transaction {
-                programmeBatch.forEach { programme ->
-                    val channelId = programme.channel?.trim()?.lowercase()
-
-                    if (!channelId.isNullOrEmpty() && cleanedChannelIdsSet.contains(channelId) &&
-                        programme.start != null && programme.stop != null
+                programmeBatch.forEach { (channelId, event) ->
+                    if (channelId.isNotEmpty() && cleanedChannelIdsSet.contains(channelId) &&
+                        event.start > 0 && event.end > 0
                     ) {
                         try {
                             programmeQueries.insertProgramme(
                                 channel_name = channelId,
-                                start_time = programme.start!!,
-                                end_time = programme.stop!!,
-                                userId = userId,
-                                imageUrl = programme.icons.firstOrNull()?.src
+                                start_time = event.start,
+                                end_time = event.end,
+                                userId = userId.toLong(),
+                                imageUrl = event.imageURL.ifBlank { null }
                             )
-                            val programmeId = programmeQueries.lastInsertProgrammeId().executeAsOne()
+                            val programmeId = programmeQueries.lastInsertProgrammeId().executeAsOne().MAX
 
-                            programme.title?.forEach { title ->
-                                title.text?.let { titleText ->
-                                    programmeQueries.insertTitle(
-                                        title = titleText,
-                                        programme_id = programmeId,
-                                        userId = userId
-                                    )
-                                }
+                            if (event.title.isNotBlank()) {
+                                programmeQueries.insertTitle(
+                                    title = event.title,
+                                    programme_id = programmeId,
+                                    userId = userId.toLong()
+                                )
                             }
 
-                            programme.desc?.forEach { desc ->
-                                desc.text?.let { descText ->
-                                    programmeQueries.insertDescription(
-                                        desc = descText,
-                                        programme_id = programmeId,
-                                        userId = userId
-                                    )
-                                }
+                            if (event.description.isNotBlank()) {
+                                programmeQueries.insertDescription(
+                                    desc = event.description,
+                                    programme_id = programmeId,
+                                    userId = userId.toLong()
+                                )
                             }
                         } catch (_: Exception) {
                             // Skip problematic programmes
@@ -565,7 +558,8 @@ private class ChannelPagingSource(
     private val customGroupQueries: CustomGroupQueries,
     private val userId: Int,
     private val categoryId: String?,
-    private val searchQuery: String?
+    private val searchQuery: String?,
+    private val parentalControlManager: ParentalControlManager
 ) : PagingSource<Int, Channel>() {
 
     override suspend fun load(params: PagingSourceLoadParams<Int>): PagingSourceLoadResult<Int, Channel> {
@@ -574,12 +568,13 @@ private class ChannelPagingSource(
         val offset = page * pageSize
 
         return try {
-            val dbChannels = when {
+            val channels: List<Channel> = when {
                 categoryId?.startsWith(CHANNEL_FILTER_CUSTOM_GROUP_PREFIX) == true -> {
                     val groupId = categoryId.removePrefix(CHANNEL_FILTER_CUSTOM_GROUP_PREFIX).toLongOrNull()
                     if (groupId != null) {
                         customGroupQueries.selectChannelsInGroupPaged(groupId, pageSize.toLong(), offset.toLong())
                             .executeAsList()
+                            .map { it.toChannel() }
                     } else emptyList()
                 }
 
@@ -588,34 +583,50 @@ private class ChannelPagingSource(
                     val likePattern = "%${words.joinToString("%")}%"
                     channelQueries.searchByName(userId.toLong(), likePattern, pageSize.toLong(), offset.toLong())
                         .executeAsList()
+                        .map { it.toChannel() }
                 }
 
                 categoryId == CHANNEL_FILTER_FAVORITES -> {
                     channelQueries.selectFavoritesPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
                         .executeAsList()
+                        .map { it.toChannel() }
                 }
 
                 categoryId == CHANNEL_FILTER_RECENTLY_VIEWED -> {
                     channelQueries.selectRecentlyViewedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
                         .executeAsList()
+                        .map { it.toChannel() }
                 }
 
                 categoryId != null && categoryId != CHANNEL_FILTER_ALL -> {
                     channelQueries.selectByCategoryPaged(userId.toLong(), categoryId, pageSize.toLong(), offset.toLong())
                         .executeAsList()
+                        .map { it.toChannel() }
                 }
 
                 else -> {
                     channelQueries.selectAllPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
                         .executeAsList()
+                        .map { it.toChannel() }
                 }
             }
 
-            val channels = dbChannels.map { it.toChannel() }
+            // Apply parental control filtering for "all" view
+            val filteredChannels = if (categoryId == null || categoryId == CHANNEL_FILTER_ALL) {
+                val protectedCategoryIds = parentalControlManager.getProtectedCategoryIds(userId)
+                if (protectedCategoryIds.isNotEmpty()) {
+                    channels.filter { channel -> channel.categoryId !in protectedCategoryIds }
+                } else {
+                    channels
+                }
+            } else {
+                channels
+            }
+
             PagingSourceLoadResultPage(
-                data = channels,
+                data = filteredChannels,
                 prevKey = if (page == 0) null else page - 1,
-                nextKey = if (channels.size < pageSize) null else page + 1
+                nextKey = if (filteredChannels.size < pageSize) null else page + 1
             )
         } catch (e: Exception) {
             PagingSourceLoadResultError(e)

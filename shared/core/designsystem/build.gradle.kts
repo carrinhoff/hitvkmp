@@ -9,13 +9,13 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":shared:core:model"))
             implementation(project(":shared:core:common"))
-            implementation(libs.coil.compose)
-            implementation(libs.coil.network.ktor)
-            implementation(libs.paging.compose)
+            implementation(libs.findLibrary("coil-compose").get())
+            implementation(libs.findLibrary("coil-network-ktor").get())
+            implementation(libs.findLibrary("paging-compose").get())
         }
         androidMain.dependencies {
-            implementation(libs.androidx.tv.foundation)
-            implementation(libs.androidx.tv.material)
+            implementation(libs.findLibrary("androidx-tv-foundation").get())
+            implementation(libs.findLibrary("androidx-tv-material").get())
         }
     }
 }

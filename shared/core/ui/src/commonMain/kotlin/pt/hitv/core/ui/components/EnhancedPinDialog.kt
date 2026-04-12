@@ -1,6 +1,8 @@
 package pt.hitv.core.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -326,10 +328,10 @@ private fun NumericKeypad(
                 ),
                 contentPadding = PaddingValues(0.dp)
             ) {
-                Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.Backspace,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
+                Text(
+                    text = "⌫",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

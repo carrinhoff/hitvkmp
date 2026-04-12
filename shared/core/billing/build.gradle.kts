@@ -9,8 +9,8 @@ kotlin {
             implementation(project(":shared:core:common"))
         }
         androidMain.dependencies {
-            implementation(libs.billing)
-            implementation(libs.billing.ktx)
+            implementation(libs.findLibrary("billing").get())
+            implementation(libs.findLibrary("billing-ktx").get())
         }
     }
 }

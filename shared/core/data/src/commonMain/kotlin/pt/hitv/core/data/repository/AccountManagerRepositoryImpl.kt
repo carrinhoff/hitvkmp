@@ -54,12 +54,12 @@ class AccountManagerRepositoryImpl(
             expirationDate = userCredentials.expirationDate,
             epgUrl = userCredentials.epgUrl,
             allowedOutputFormats = userCredentials.allowedOutputFormats?.joinToString(","),
-            channelPreviewEnabled = userCredentials.channelPreviewEnabled ?: true
+            channelPreviewEnabled = if (userCredentials.channelPreviewEnabled != false) 1L else 0L
         )
 
         // Get the user ID (either newly inserted or existing)
         val existingId = userCredentialsQueries.selectUserId(userCredentials.username, hostname)
-            .executeAsOneOrNull()?.userId
+            .executeAsOneOrNull()
         return existingId?.toInt() ?: -1
     }
 
@@ -96,7 +96,7 @@ class AccountManagerRepositoryImpl(
                 expirationDate = it.expirationDate,
                 epgUrl = it.epgUrl,
                 allowedOutputFormats = it.allowedOutputFormats?.split(","),
-                channelPreviewEnabled = it.channelPreviewEnabled
+                channelPreviewEnabled = it.channelPreviewEnabled != 0L
             )
         }
     }
@@ -117,7 +117,7 @@ class AccountManagerRepositoryImpl(
                 expirationDate = it.expirationDate,
                 epgUrl = it.epgUrl,
                 allowedOutputFormats = it.allowedOutputFormats?.split(","),
-                channelPreviewEnabled = it.channelPreviewEnabled
+                channelPreviewEnabled = it.channelPreviewEnabled != 0L
             )
         }
     }
@@ -161,7 +161,7 @@ class AccountManagerRepositoryImpl(
                         expirationDate = it.expirationDate,
                         allowedOutputFormats = it.allowedOutputFormats?.split(","),
                         epgUrl = it.epgUrl,
-                        channelPreviewEnabled = it.channelPreviewEnabled
+                        channelPreviewEnabled = it.channelPreviewEnabled != 0L
                     )
                 }
             )
@@ -169,7 +169,7 @@ class AccountManagerRepositoryImpl(
     }
 
     override suspend fun updateChannelPreviewEnabled(userId: Int, enabled: Boolean) {
-        userCredentialsQueries.updateChannelPreviewEnabled(enabled, userId.toLong())
+        userCredentialsQueries.updateChannelPreviewEnabled(if (enabled) 1L else 0L, userId.toLong())
     }
 
     override suspend fun updateAccountCredentials(

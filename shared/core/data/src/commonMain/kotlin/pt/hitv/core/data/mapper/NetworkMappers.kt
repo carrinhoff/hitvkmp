@@ -43,53 +43,53 @@ import pt.hitv.core.network.model.seriesInfo.NetworkSeriesInfoResponse
 fun NetworkMovie.asExternalModel() = Movie(
     movieId = movieId,
     name = name ?: "",
-    streamId = stream_id ?: "",
-    streamIcon = stream_icon,
+    streamId = streamId ?: "",
+    streamIcon = streamIcon,
     rating = rating,
     added = added ?: "",
-    categoryId = category_id,
-    containerExtension = container_extension ?: "",
-    customSid = custom_sid,
-    directSource = direct_source,
+    categoryId = categoryId,
+    containerExtension = containerExtension ?: "",
+    customSid = customSid,
+    directSource = directSource,
     num = num,
-    streamType = stream_type,
-    rating5based = rating_5based
+    streamType = streamType,
+    rating5based = rating5based
 )
 
 // NetworkTvShow -> TvShow
 fun NetworkTvShow.asExternalModel() = TvShow(
     num = num,
     name = name,
-    seriesId = series_id,
+    seriesId = seriesId,
     cover = cover,
     plot = plot,
     cast = cast,
     director = director,
     genre = genre,
     releaseDate = releaseDate,
-    lastModified = last_modified,
+    lastModified = lastModified,
     rating = rating,
-    rating5based = rating_5based,
-    backdropPath = backdrop_path,
-    youtubeTrailer = youtube_trailer,
-    episodeRunTime = episode_run_time,
-    categoryId = category_id
+    rating5based = rating5based,
+    backdropPath = backdropPath?.filterNotNull(),
+    youtubeTrailer = youtubeTrailer,
+    episodeRunTime = episodeRunTime,
+    categoryId = categoryId
 )
 
 // NetworkLiveStream -> LiveStream
 fun NetworkLiveStream.asExternalModel() = LiveStream(
     num = num,
     name = name ?: "",
-    streamType = stream_type ?: "",
-    streamId = stream_id,
-    streamIcon = stream_icon ?: "",
-    epgChannelId = epg_channel_id ?: "",
+    streamType = streamType ?: "",
+    streamId = streamId,
+    streamIcon = streamIcon ?: "",
+    epgChannelId = epgChannelId ?: "",
     added = added,
-    categoryId = category_id,
-    customSid = custom_sid ?: "",
-    tvArchive = tv_archive,
-    directSource = direct_source ?: "",
-    tvArchiveDuration = tv_archive_duration
+    categoryId = categoryId,
+    customSid = customSid ?: "",
+    tvArchive = tvArchive,
+    directSource = directSource ?: "",
+    tvArchiveDuration = tvArchiveDuration
 )
 
 // NetworkCategory -> Category
@@ -112,30 +112,30 @@ fun NetworkUserInfo.asExternalModel() = UserInfo(
     message = message ?: "",
     auth = auth?.toIntOrNull() ?: 0,
     status = status ?: "",
-    expDate = exp_date,
-    isTrial = is_trial?.toIntOrNull() ?: 0,
-    activeCons = active_cons?.toIntOrNull() ?: 0,
-    createdAt = created_at?.toIntOrNull() ?: 0,
-    maxConnections = max_connections?.toIntOrNull() ?: 0,
-    allowedOutputFormats = allowed_output_formats ?: emptyList()
+    expDate = expDate,
+    isTrial = isTrial?.toIntOrNull() ?: 0,
+    activeCons = activeCons?.toIntOrNull() ?: 0,
+    createdAt = createdAt?.toIntOrNull() ?: 0,
+    maxConnections = maxConnections?.toIntOrNull() ?: 0,
+    allowedOutputFormats = allowedOutputFormats ?: emptyList()
 )
 
 // NetworkServerInfo -> ServerInfo
 fun NetworkServerInfo.asExternalModel() = ServerInfo(
     url = url,
     port = port,
-    httpsPort = https_port,
-    serverProtocol = server_protocol,
-    rtmpPort = rtmp_port,
+    httpsPort = httpsPort,
+    serverProtocol = serverProtocol,
+    rtmpPort = rtmpPort,
     timezone = timezone,
-    timestampNow = timestamp_now,
-    timeNow = time_now
+    timestampNow = timestampNow,
+    timeNow = timeNow
 )
 
 // NetworkMovieInfoResponse -> MovieInfoResponse
 fun NetworkMovieInfoResponse.asExternalModel() = MovieInfoResponse(
     info = info?.asExternalModel() ?: Info(durationSecs = null),
-    movieData = movie_data?.asExternalModel()
+    movieData = movieData?.asExternalModel()
         ?: MovieData(
             streamId = 0,
             name = "",
@@ -152,35 +152,35 @@ fun NetworkMovieData.asExternalModel() = MovieData(
     streamId = streamId,
     name = name ?: "",
     added = added,
-    categoryId = category_id,
-    containerExtension = container_extension ?: "",
-    customSid = custom_sid,
-    directSource = direct_source
+    categoryId = categoryId,
+    containerExtension = containerExtension ?: "",
+    customSid = customSid,
+    directSource = directSource
 )
 
 // NetworkInfo -> Info
 fun NetworkInfo.asExternalModel() = Info(
-    kinopoiskUrl = kinopoisk_url,
-    tmdbId = tmdb_id,
+    kinopoiskUrl = kinopoiskUrl,
+    tmdbId = tmdbId,
     name = name,
-    oName = o_name,
-    coverBig = cover_big,
-    movieImage = movie_image,
+    oName = oName,
+    coverBig = coverBig,
+    movieImage = movieImage,
     releasedate = releasedate,
-    episodeRunTime = episode_run_time,
-    youtubeTrailer = youtube_trailer,
+    episodeRunTime = episodeRunTime,
+    youtubeTrailer = youtubeTrailer,
     director = director,
     actors = actors,
     cast = cast,
     description = description,
     plot = plot,
     age = age,
-    mpaaRating = mpaa_rating,
-    ratingCountKinopoisk = rating_count_kinopoisk,
+    mpaaRating = mpaaRating,
+    ratingCountKinopoisk = ratingCountKinopoisk,
     country = country,
     genre = genre,
-    backdropPath = backdrop_path?.toList(),
-    durationSecs = duration_secs,
+    backdropPath = backdropPath,
+    durationSecs = durationSecs,
     duration = duration,
     bitrate = bitrate,
     rating = rating
@@ -238,12 +238,12 @@ fun NetworkEpisode.asExternalModel() = Episode(
 
 // NetworkEpisodeInfo -> EpisodeInfo
 fun NetworkEpisodeInfo.asExternalModel() = EpisodeInfo(
-    tmdbId = tmdb_id,
+    tmdbId = tmdbId,
     releasedate = releasedate,
     plot = plot,
-    durationSecs = duration_secs,
+    durationSecs = durationSecs,
     duration = duration,
-    movieImage = movie_image,
+    movieImage = movieImage,
     bitrate = bitrate,
     rating = rating,
     season = season
@@ -261,14 +261,14 @@ fun NetworkCast.asExternalModel() = Cast(
     adult = adult,
     gender = gender,
     id = id,
-    knownForDepartment = known_for_department ?: "",
+    knownForDepartment = knownForDepartment ?: "",
     name = name ?: "",
-    originalName = original_name ?: "",
+    originalName = originalName ?: "",
     popularity = popularity,
-    profilePath = profile_path ?: "",
-    castId = cast_id,
+    profilePath = profilePath ?: "",
+    castId = castId,
     character = character ?: "",
-    creditId = credit_id ?: "",
+    creditId = creditId ?: "",
     order = order
 )
 
@@ -277,12 +277,12 @@ fun NetworkCrew.asExternalModel() = Crew(
     adult = adult,
     gender = gender,
     id = id,
-    knownForDepartment = known_for_department ?: "",
+    knownForDepartment = knownForDepartment ?: "",
     name = name ?: "",
-    originalName = original_name ?: "",
+    originalName = originalName ?: "",
     popularity = popularity,
-    profilePath = profile_path ?: "",
-    creditId = credit_id ?: "",
+    profilePath = profilePath ?: "",
+    creditId = creditId ?: "",
     department = department ?: "",
     job = job ?: ""
 )

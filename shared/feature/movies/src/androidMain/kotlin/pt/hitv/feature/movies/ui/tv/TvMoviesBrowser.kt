@@ -1,6 +1,5 @@
 package pt.hitv.feature.movies.ui.tv
 
-import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -25,18 +24,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.paging.LoadState
-import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.itemKey
+import app.cash.paging.compose.LazyPagingItems
+import app.cash.paging.compose.itemKey
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.rememberTvLazyGridState
@@ -50,15 +46,15 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Border
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import pt.hitv.core.designsystem.R
 import pt.hitv.core.model.Movie
 import pt.hitv.core.data.paging.MOVIE_FILTER_ALL
 import pt.hitv.core.data.paging.MOVIE_FILTER_FAVORITES
 import pt.hitv.core.data.paging.MOVIE_FILTER_LAST_ADDED
 import pt.hitv.core.data.paging.MOVIE_FILTER_RECENTLY_VIEWED
 import pt.hitv.feature.movies.list.MovieViewModel
-import pt.hitv.core.ui.components.movie.TvMaterialMovieCard
-import pt.hitv.core.designsystem.model.UnifiedSortOptions
+import pt.hitv.core.ui.components.TvMaterialMovieCard
+import pt.hitv.core.designsystem.model.SortOption
+import pt.hitv.core.designsystem.model.createUnifiedSortOptions
 import pt.hitv.core.common.analytics.AnalyticsHelper
 import pt.hitv.core.model.enums.ClickType
 import pt.hitv.core.designsystem.theme.getThemeColors
@@ -88,7 +84,6 @@ fun TvMoviesBrowser(
     onMovieClicked: (Movie, Int, ClickType) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val movieUiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -114,11 +109,11 @@ fun TvMoviesBrowser(
 
     val sidebarCategories = remember(categories, favorites, recentMovies, lastAddedMovies, categoryCounts) {
         buildList {
-            add(SidebarCategory(FILTER_SEARCH, context.getString(R.string.search), Icons.Default.Search, 0))
-            add(SidebarCategory(MOVIE_FILTER_ALL, context.getString(R.string.all), Icons.Default.Movie, categoryCounts[MOVIE_FILTER_ALL] ?: 0))
-            add(SidebarCategory(MOVIE_FILTER_FAVORITES, context.getString(R.string.favorites), Icons.Default.Favorite, favorites.size))
-            add(SidebarCategory(MOVIE_FILTER_RECENTLY_VIEWED, context.getString(R.string.recently_viewed), Icons.Default.History, recentMovies.size))
-            add(SidebarCategory(MOVIE_FILTER_LAST_ADDED, context.getString(R.string.last_added), Icons.Default.NewReleases, lastAddedMovies.size))
+            add(SidebarCategory(FILTER_SEARCH, "Search", Icons.Default.Search, 0))
+            add(SidebarCategory(MOVIE_FILTER_ALL, "All", Icons.Default.Movie, categoryCounts[MOVIE_FILTER_ALL] ?: 0))
+            add(SidebarCategory(MOVIE_FILTER_FAVORITES, "Favorites", Icons.Default.Favorite, favorites.size))
+            add(SidebarCategory(MOVIE_FILTER_RECENTLY_VIEWED, "Recently Viewed", Icons.Default.History, recentMovies.size))
+            add(SidebarCategory(MOVIE_FILTER_LAST_ADDED, "Last Added", Icons.Default.NewReleases, lastAddedMovies.size))
             categories.forEach { add(SidebarCategory(it.categoryId.toString(), it.categoryName, count = categoryCounts[it.categoryId.toString()] ?: 0)) }
         }
     }
@@ -139,7 +134,7 @@ fun TvMoviesBrowser(
     val gridState = rememberTvLazyGridState()
 
     LaunchedEffect(movies.loadState.refresh) {
-        if (movies.loadState.refresh is LoadState.Loading && gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
+        if (movies.loadState.refresh is app.cash.paging.LoadStateLoading && gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
     }
 
     val activeFocusIndex = movieUiState.focusState.activeFocusIndex
@@ -182,10 +177,10 @@ fun TvMoviesBrowser(
                 }
 
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    if (movies.loadState.refresh is LoadState.Loading) {
+                    if (movies.loadState.refresh is app.cash.paging.LoadStateLoading) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = getThemeColors().primaryColor) }
-                    } else if (movies.itemCount == 0 && movies.loadState.refresh is LoadState.NotLoading) {
-                        TvEmptyState(message = stringResource(R.string.no_movies_to_show))
+                    } else if (movies.itemCount == 0 && movies.loadState.refresh is app.cash.paging.LoadStateNotLoading) {
+                        TvEmptyState(message = "No movies to show")
                     } else {
                         TvMovieGrid(movies = movies, viewModel = viewModel, gridState = gridState, gridFocusRequester = gridFocusRequester, columns = GRID_COLS, activeFocusIndex = activeFocusIndex,
                             onMovieClicked = { movie, index, clickType -> viewModel.savePendingFocus(index, currentCategoryFilter, movie.streamId); onMovieClicked(movie, index, clickType) },
@@ -208,12 +203,13 @@ fun TvFilterHeader(title: String, currentSort: String, isAscending: Boolean, onS
         androidx.tv.material3.Text(text = title, style = androidx.tv.material3.MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
         Box {
             TvFilterChip(label = getSortLabel(currentSort, isAscending), icon = Icons.Default.Sort, onClick = { isSortMenuExpanded = true }, focusRequester = focusRequester, onNavigateLeft = onNavigateLeft, onNavigateDown = onNavigateDown)
+            val sortOptions = createUnifiedSortOptions()
             androidx.compose.material3.DropdownMenu(expanded = isSortMenuExpanded, onDismissRequest = { isSortMenuExpanded = false }, modifier = Modifier.background(Color.Black.copy(0.9f))) {
-                UnifiedSortOptions.forEach { option ->
+                sortOptions.forEach { option ->
                     val isSelected = option.id == currentSort
                     androidx.compose.material3.DropdownMenuItem(text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Text(option.getLabel(), color = if (isSelected) themeColors.primaryColor else Color.White, modifier = Modifier.weight(1f))
+                            androidx.compose.material3.Text(option.label, color = if (isSelected) themeColors.primaryColor else Color.White, modifier = Modifier.weight(1f))
                             if (isSelected && option.supportsDirection) androidx.compose.material3.Icon(if (isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, null, tint = themeColors.primaryColor, modifier = Modifier.size(16.dp))
                         }
                     }, onClick = { onSortSelected(option.id); if (!option.supportsDirection) isSortMenuExpanded = false })
@@ -225,9 +221,10 @@ fun TvFilterHeader(title: String, currentSort: String, isAscending: Boolean, onS
 
 @Composable
 fun getSortLabel(sort: String, isAscending: Boolean): String {
-    val option = UnifiedSortOptions.find { it.id == sort } ?: return stringResource(R.string.sort_by)
-    val label = option.getLabel()
-    return if (option.supportsDirection) { val direction = if (isAscending) stringResource(R.string.sort_ascending) else stringResource(R.string.sort_descending); "$label ($direction)" } else label
+    val sortOptions = createUnifiedSortOptions()
+    val option = sortOptions.find { it.id == sort } ?: return "Sort by"
+    val label = option.label
+    return if (option.supportsDirection) { val direction = if (isAscending) "Ascending" else "Descending"; "$label ($direction)" } else label
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -253,7 +250,7 @@ fun TvModernSearchBar(value: String, onValueChange: (String) -> Unit, onSearch: 
     val borderColor by animateColorAsState(if (isFocused) themeColors.primaryColor else Color.Transparent, tween(300), label = "border")
     val keyMod = Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onNavigateLeft(); true } else false }
     BasicTextField(value = value, onValueChange = onValueChange, modifier = modifier.height(56.dp).focusRequester(focusRequester).onFocusChanged { isFocused = it.isFocused }.then(keyMod), textStyle = TextStyle(Color.White, 18.sp, FontWeight.Medium), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { onSearch() }), cursorBrush = SolidColor(themeColors.primaryColor), singleLine = true,
-        decorationBox = { innerTextField -> Box(Modifier.fillMaxSize().background(bgColor, RoundedCornerShape(50)).border(if (isFocused) 2.dp else 0.dp, borderColor, RoundedCornerShape(50)).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { androidx.compose.material3.Icon(Icons.Default.Search, "Search", tint = if (isFocused) themeColors.primaryColor else Color.White.copy(0.6f), modifier = Modifier.size(24.dp)); Box(Modifier.weight(1f)) { if (value.isEmpty()) androidx.compose.material3.Text(stringResource(R.string.search), color = Color.White.copy(0.4f), fontSize = 18.sp); innerTextField() } } } })
+        decorationBox = { innerTextField -> Box(Modifier.fillMaxSize().background(bgColor, RoundedCornerShape(50)).border(if (isFocused) 2.dp else 0.dp, borderColor, RoundedCornerShape(50)).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { androidx.compose.material3.Icon(Icons.Default.Search, "Search", tint = if (isFocused) themeColors.primaryColor else Color.White.copy(0.6f), modifier = Modifier.size(24.dp)); Box(Modifier.weight(1f)) { if (value.isEmpty()) androidx.compose.material3.Text("Search", color = Color.White.copy(0.4f), fontSize = 18.sp); innerTextField() } } } })
 }
 
 @Composable
@@ -270,7 +267,7 @@ private fun TvSidebar(categories: List<SidebarCategory>, selectedIndex: Int, isE
     LaunchedEffect(selectedIndex) { if (selectedIndex in categories.indices) listState.animateScrollToItem(selectedIndex) }
     Surface(modifier = modifier.width(currentWidth).onFocusChanged { onFocusChanged(it.hasFocus) }, shape = RoundedCornerShape(12.dp), colors = SurfaceDefaults.colors(containerColor = Color.Black.copy(0.7f))) {
         Column(Modifier.fillMaxSize()) {
-            if (isExpanded) androidx.tv.material3.Text(stringResource(R.string.movies), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp, start = 20.dp, bottom = 4.dp))
+            if (isExpanded) androidx.tv.material3.Text("Movies", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp, start = 20.dp, bottom = 4.dp))
             TvLazyColumn(state = listState, modifier = Modifier.fillMaxSize().focusRequester(listFocusRequester), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 itemsIndexed(items = categories, key = { _, c -> c.id }) { index, category ->
                     val navMod = Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { onNavigateRight(); true } else false }

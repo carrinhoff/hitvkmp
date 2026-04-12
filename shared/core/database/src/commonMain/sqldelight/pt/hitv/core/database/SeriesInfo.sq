@@ -15,35 +15,35 @@ CREATE TABLE SeriesInfo (
     youtube_trailer TEXT,
     episode_run_time TEXT,
     category_id TEXT,
-    userId INTEGER AS Int NOT NULL
+    userId INTEGER NOT NULL
 );
 
 -- Season table
 CREATE TABLE Season (
     season_id TEXT PRIMARY KEY NOT NULL,
     air_date TEXT,
-    episode_count INTEGER AS Int,
+    episode_count INTEGER,
     name TEXT,
     overview TEXT,
-    season_number INTEGER AS Int NOT NULL,
+    season_number INTEGER NOT NULL,
     cover TEXT,
     cover_big TEXT,
     series_id TEXT NOT NULL,
-    userId INTEGER AS Int NOT NULL
+    userId INTEGER NOT NULL
 );
 
 -- Episode table
 CREATE TABLE Episode (
     episode_id TEXT PRIMARY KEY NOT NULL,
-    episode_num INTEGER AS Int,
+    episode_num INTEGER,
     title TEXT,
     container_extension TEXT,
     custom_sid TEXT,
     added TEXT,
-    season INTEGER AS Int,
+    season INTEGER,
     direct_source TEXT,
     seasonCreatorId TEXT NOT NULL,
-    userId INTEGER AS Int NOT NULL
+    userId INTEGER NOT NULL
 );
 
 -- EpisodeInfo table
@@ -58,7 +58,7 @@ CREATE TABLE EpisodeInfo (
     bitrate REAL,
     rating REAL,
     season TEXT,
-    userId INTEGER AS Int NOT NULL,
+    userId INTEGER NOT NULL,
     playbackPosition INTEGER NOT NULL DEFAULT 0
 );
 

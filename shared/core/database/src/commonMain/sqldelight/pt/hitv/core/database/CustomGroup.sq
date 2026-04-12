@@ -5,10 +5,10 @@ CREATE TABLE CustomGroup (
     groupIcon TEXT,
     createdAt INTEGER NOT NULL DEFAULT 0,
     updatedAt INTEGER NOT NULL DEFAULT 0,
-    sortOrder INTEGER AS Int NOT NULL DEFAULT 0,
-    isPinned INTEGER AS Boolean NOT NULL DEFAULT 0,
-    isHidden INTEGER AS Boolean NOT NULL DEFAULT 0,
-    isDefault INTEGER AS Boolean NOT NULL DEFAULT 0
+    sortOrder INTEGER NOT NULL DEFAULT 0,
+    isPinned INTEGER NOT NULL DEFAULT 0,
+    isHidden INTEGER NOT NULL DEFAULT 0,
+    isDefault INTEGER NOT NULL DEFAULT 0
 );
 
 -- CustomGroupChannel junction table
@@ -16,8 +16,8 @@ CREATE TABLE CustomGroupChannel (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     groupId INTEGER NOT NULL REFERENCES CustomGroup(groupId) ON DELETE CASCADE,
     channelId INTEGER NOT NULL REFERENCES Channel(channelId) ON DELETE CASCADE,
-    channelUserId INTEGER AS Int NOT NULL DEFAULT 0,
-    position INTEGER AS Int NOT NULL DEFAULT 0,
+    channelUserId INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
     addedAt INTEGER NOT NULL DEFAULT 0
 );
 
@@ -49,7 +49,7 @@ INSERT OR REPLACE INTO CustomGroup(groupName, groupIcon, createdAt, updatedAt, s
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 lastInsertGroupId:
-SELECT last_insert_rowid();
+SELECT MAX(groupId) FROM CustomGroup;
 
 updateGroup:
 UPDATE CustomGroup SET groupName = ?, groupIcon = ?, updatedAt = ?, sortOrder = ?, isPinned = ?, isHidden = ?, isDefault = ?

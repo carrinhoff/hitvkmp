@@ -4,12 +4,8 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 import pt.hitv.feature.channels.StreamViewModel
 
-/**
- * Koin module for the channels feature.
- */
 val channelsFeatureModule: Module = module {
-
-    factory {
+    single {
         StreamViewModel(
             userSessionManager = get(),
             repository = get(),

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,19 +62,33 @@ fun MovieCardHorizontal(
             .width(280.dp)
             .height(160.dp)
             .combinedClickable(
-                onClick = { onMovieClicked(ClickType.CLICK) },
-                onLongClick = { onMovieClicked(ClickType.LONG_CLICK) }
+                onClick = {
+                    println("MOVIE_CLICK: ${movie.name}")
+                    onMovieClicked(ClickType.CLICK)
+                },
+                onLongClick = {
+                    println("MOVIE_LONG_CLICK: ${movie.name}")
+                    onMovieClicked(ClickType.LONG_CLICK)
+                }
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         shape = RoundedCornerShape(12.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Placeholder background for movie poster
+            // Movie poster background
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(themeColors.backgroundSecondary)
+            )
+
+            // Movie poster image
+            coil3.compose.AsyncImage(
+                model = movie.streamIcon,
+                contentDescription = movie.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
             )
 
             // Gradient overlay
@@ -137,7 +152,7 @@ fun MovieCardHorizontal(
                             Icon(imageVector = Icons.Default.Star, contentDescription = "Rating", tint = Color(0xFFFFA000), modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "%.1f".format(rating),
+                                text = "${kotlin.math.round(rating * 10) / 10.0}",
                                 color = Color.White,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium

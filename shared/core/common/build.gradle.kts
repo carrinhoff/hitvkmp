@@ -7,13 +7,13 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":shared:core:model"))
-            implementation(libs.multiplatform.settings)
-            implementation(libs.multiplatform.settings.coroutines)
-            implementation(libs.kotlinx.datetime)
+            implementation(libs.findLibrary("multiplatform-settings").get())
+            implementation(libs.findLibrary("multiplatform-settings-coroutines").get())
+            implementation(libs.findLibrary("kotlinx-datetime").get())
         }
         androidMain.dependencies {
-            implementation(libs.zxing.core)
-            implementation(libs.androidx.security.crypto)
+            implementation(libs.findLibrary("zxing-core").get())
+            implementation(libs.findLibrary("androidx-security-crypto").get())
         }
     }
 }

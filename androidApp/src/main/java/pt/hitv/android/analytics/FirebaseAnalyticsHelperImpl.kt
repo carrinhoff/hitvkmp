@@ -15,43 +15,32 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
     private val analytics = Firebase.analytics
 
     override fun logScreenView(screen: ScreenName, screenClass: String) {
-        analytics.logEvent("screen_view") {
-            param("screen_name", screen.screenName)
-            param("screen_class", screenClass)
-        }
+        analytics.logEvent("screen_view", mapOf(
+            "screen_name" to screen.screenName,
+            "screen_class" to screenClass
+        ))
     }
 
     override fun logCustomEvent(eventName: String, params: Map<String, Any>?) {
-        analytics.logEvent(eventName) {
-            params?.forEach { (key, value) ->
-                when (value) {
-                    is String -> param(key, value)
-                    is Long -> param(key, value)
-                    is Double -> param(key, value)
-                    is Int -> param(key, value.toLong())
-                    is Boolean -> param(key, value.toString())
-                    else -> param(key, value.toString())
-                }
-            }
-        }
+        analytics.logEvent(eventName, params)
     }
 
     override fun logSearch(term: String) {
-        analytics.logEvent("search") {
-            param("search_term", term)
-        }
+        analytics.logEvent("search", mapOf(
+            "search_term" to term
+        ))
     }
 
     override fun logCategorySelected(categoryName: String) {
-        analytics.logEvent("select_category") {
-            param("category_name", categoryName)
-        }
+        analytics.logEvent("select_category", mapOf(
+            "category_name" to categoryName
+        ))
     }
 
     override fun logLogin(method: String) {
-        analytics.logEvent("login") {
-            param("method", method)
-        }
+        analytics.logEvent("login", mapOf(
+            "method" to method
+        ))
     }
 
     override fun setUserId(userId: String?) {
@@ -63,54 +52,54 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
     }
 
     override fun logSwitchAccount(userId: String, hostname: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_SWITCH_ACCOUNT) {
-            param(AnalyticsHelper.PARAM_SELECTED_USER_ID, userId)
-            param(AnalyticsHelper.PARAM_SELECTED_HOSTNAME, hostname)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_SWITCH_ACCOUNT, mapOf(
+            AnalyticsHelper.PARAM_SELECTED_USER_ID to userId,
+            AnalyticsHelper.PARAM_SELECTED_HOSTNAME to hostname
+        ))
     }
 
     override fun logAddAccountClicked() {
-        analytics.logEvent(AnalyticsHelper.EVENT_ADD_ACCOUNT_CLICKED) {}
+        analytics.logEvent(AnalyticsHelper.EVENT_ADD_ACCOUNT_CLICKED)
     }
 
     override fun logDeleteAccountIntent(userId: String, hostname: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_DELETE_ACCOUNT_INTENT) {
-            param(AnalyticsHelper.PARAM_DELETED_USER_ID, userId)
-            param(AnalyticsHelper.PARAM_DELETED_HOSTNAME, hostname)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_DELETE_ACCOUNT_INTENT, mapOf(
+            AnalyticsHelper.PARAM_DELETED_USER_ID to userId,
+            AnalyticsHelper.PARAM_DELETED_HOSTNAME to hostname
+        ))
     }
 
     override fun logDeleteAccountConfirmed(userId: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_DELETE_ACCOUNT_CONFIRMED) {
-            param(AnalyticsHelper.PARAM_DELETED_USER_ID, userId)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_DELETE_ACCOUNT_CONFIRMED, mapOf(
+            AnalyticsHelper.PARAM_DELETED_USER_ID to userId
+        ))
     }
 
     override fun logPlaybackEvent(eventName: String, contentType: ContentType, itemId: String) {
-        analytics.logEvent(eventName) {
-            param("content_type", contentType.value)
-            param("item_id", itemId)
-        }
+        analytics.logEvent(eventName, mapOf(
+            "content_type" to contentType.value,
+            "item_id" to itemId
+        ))
     }
 
     override fun logPremiumClicked(sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_CLICKED) {
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_CLICKED, mapOf(
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logThemeSelectionOpened(sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_THEME_SELECTION_OPENED) {
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_THEME_SELECTION_OPENED, mapOf(
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logThemeSelected(themeName: String, themeType: String, sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_THEME_SELECTED) {
-            param(AnalyticsHelper.PARAM_THEME_NAME, themeName)
-            param(AnalyticsHelper.PARAM_THEME_TYPE, themeType)
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_THEME_SELECTED, mapOf(
+            AnalyticsHelper.PARAM_THEME_NAME to themeName,
+            AnalyticsHelper.PARAM_THEME_TYPE to themeType,
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logThemeApplied(
@@ -119,33 +108,33 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         previousTheme: String?,
         sourceScreen: String
     ) {
-        analytics.logEvent(AnalyticsHelper.EVENT_THEME_APPLIED) {
-            param(AnalyticsHelper.PARAM_THEME_NAME, themeName)
-            param(AnalyticsHelper.PARAM_THEME_TYPE, themeType)
-            previousTheme?.let { param(AnalyticsHelper.PARAM_PREVIOUS_THEME, it) }
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_THEME_APPLIED, buildMap {
+            put(AnalyticsHelper.PARAM_THEME_NAME, themeName)
+            put(AnalyticsHelper.PARAM_THEME_TYPE, themeType)
+            previousTheme?.let { put(AnalyticsHelper.PARAM_PREVIOUS_THEME, it) }
+            put(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
+        })
     }
 
     override fun logUnlockThemesClicked(sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_UNLOCK_THEMES_CLICKED) {
-            param(AnalyticsHelper.PARAM_PURCHASE_TYPE, "themes")
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_UNLOCK_THEMES_CLICKED, mapOf(
+            AnalyticsHelper.PARAM_PURCHASE_TYPE to "themes",
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logRemoveAdsClicked(sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_REMOVE_ADS_CLICKED) {
-            param(AnalyticsHelper.PARAM_PURCHASE_TYPE, "remove_ads")
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_REMOVE_ADS_CLICKED, mapOf(
+            AnalyticsHelper.PARAM_PURCHASE_TYPE to "remove_ads",
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logPremiumPurchaseInitiated(purchaseType: String, sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_PURCHASE_INITIATED) {
-            param(AnalyticsHelper.PARAM_PURCHASE_TYPE, purchaseType)
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_PURCHASE_INITIATED, mapOf(
+            AnalyticsHelper.PARAM_PURCHASE_TYPE to purchaseType,
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logPremiumPurchaseResult(purchaseType: String, result: String, sourceScreen: String) {
@@ -153,51 +142,51 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
             "success" -> AnalyticsHelper.EVENT_PREMIUM_PURCHASE_SUCCESS
             else -> AnalyticsHelper.EVENT_PREMIUM_PURCHASE_FAILED
         }
-        analytics.logEvent(eventName) {
-            param(AnalyticsHelper.PARAM_PURCHASE_TYPE, purchaseType)
-            param(AnalyticsHelper.PARAM_PURCHASE_RESULT, result)
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(eventName, mapOf(
+            AnalyticsHelper.PARAM_PURCHASE_TYPE to purchaseType,
+            AnalyticsHelper.PARAM_PURCHASE_RESULT to result,
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logTrialModalShown(devicePlatform: String, isEligible: Boolean) {
-        analytics.logEvent(AnalyticsHelper.EVENT_TRIAL_MODAL_SHOWN) {
-            param(AnalyticsHelper.PARAM_DEVICE_PLATFORM, devicePlatform)
-            param(AnalyticsHelper.PARAM_IS_TRIAL_ELIGIBLE, isEligible.toString())
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_TRIAL_MODAL_SHOWN, mapOf(
+            AnalyticsHelper.PARAM_DEVICE_PLATFORM to devicePlatform,
+            AnalyticsHelper.PARAM_IS_TRIAL_ELIGIBLE to isEligible.toString()
+        ))
     }
 
     override fun logTrialModalAccepted(devicePlatform: String, timeToActionSeconds: Long) {
-        analytics.logEvent(AnalyticsHelper.EVENT_TRIAL_MODAL_ACCEPTED) {
-            param(AnalyticsHelper.PARAM_DEVICE_PLATFORM, devicePlatform)
-            param(AnalyticsHelper.PARAM_TIME_TO_ACTION, timeToActionSeconds)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_TRIAL_MODAL_ACCEPTED, mapOf(
+            AnalyticsHelper.PARAM_DEVICE_PLATFORM to devicePlatform,
+            AnalyticsHelper.PARAM_TIME_TO_ACTION to timeToActionSeconds
+        ))
     }
 
     override fun logTrialModalDismissed(devicePlatform: String, timeToActionSeconds: Long) {
-        analytics.logEvent(AnalyticsHelper.EVENT_TRIAL_MODAL_DISMISSED) {
-            param(AnalyticsHelper.PARAM_DEVICE_PLATFORM, devicePlatform)
-            param(AnalyticsHelper.PARAM_TIME_TO_ACTION, timeToActionSeconds)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_TRIAL_MODAL_DISMISSED, mapOf(
+            AnalyticsHelper.PARAM_DEVICE_PLATFORM to devicePlatform,
+            AnalyticsHelper.PARAM_TIME_TO_ACTION to timeToActionSeconds
+        ))
     }
 
     override fun logPremiumTabViewed(sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_TAB_VIEWED) {
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_TAB_VIEWED, mapOf(
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logPremiumScreenViewed(sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_SCREEN_VIEWED) {
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_SCREEN_VIEWED, mapOf(
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logPremiumFeatureClicked(featureName: String, sourceScreen: String) {
-        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_FEATURE_CLICKED) {
-            param(AnalyticsHelper.PARAM_FEATURE_NAME, featureName)
-            param(AnalyticsHelper.PARAM_SOURCE_SCREEN, sourceScreen)
-        }
+        analytics.logEvent(AnalyticsHelper.EVENT_PREMIUM_FEATURE_CLICKED, mapOf(
+            AnalyticsHelper.PARAM_FEATURE_NAME to featureName,
+            AnalyticsHelper.PARAM_SOURCE_SCREEN to sourceScreen
+        ))
     }
 
     override fun logContentDetailLoaded(
@@ -206,12 +195,12 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         loadTimeMs: Long,
         dataSource: String
     ) {
-        analytics.logEvent("content_detail_loaded") {
-            param("content_type", contentType.value)
-            param("content_id", contentId)
-            param("load_time_ms", loadTimeMs.toString())
-            param("data_source", dataSource)
-        }
+        analytics.logEvent("content_detail_loaded", mapOf(
+            "content_type" to contentType.value,
+            "content_id" to contentId,
+            "load_time_ms" to loadTimeMs.toString(),
+            "data_source" to dataSource
+        ))
     }
 
     override fun logContentDetailLoadFailed(
@@ -220,12 +209,12 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         failureReason: String,
         retryAttempt: Int
     ) {
-        analytics.logEvent("content_detail_load_failed") {
-            param("content_type", contentType.value)
-            param("content_id", contentId)
-            param("failure_reason", failureReason.take(100))
-            param("retry_attempt", retryAttempt.toString())
-        }
+        analytics.logEvent("content_detail_load_failed", mapOf(
+            "content_type" to contentType.value,
+            "content_id" to contentId,
+            "failure_reason" to failureReason.take(100),
+            "retry_attempt" to retryAttempt.toString()
+        ))
     }
 
     override fun logToggleFavorite(
@@ -235,11 +224,11 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         isAdding: Boolean
     ) {
         val eventName = if (isAdding) "add_favorite" else "remove_favorite"
-        analytics.logEvent(eventName) {
-            param("content_type", contentType.value)
-            param("item_id", contentId)
-            contentName?.let { param("item_name", it) }
-        }
+        analytics.logEvent(eventName, buildMap {
+            put("content_type", contentType.value)
+            put("item_id", contentId)
+            contentName?.let { put("item_name", it) }
+        })
     }
 
     override fun logError(
@@ -249,13 +238,13 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         contentId: String?,
         throwable: Throwable?
     ) {
-        analytics.logEvent("error_occurred") {
-            param("error_type", errorType)
-            param("error_message", errorMessage.take(100))
-            screenName?.let { param("screen_name", it) }
-            contentId?.let { param("content_id", it) }
-            throwable?.let { param("error_details", it::class.simpleName ?: "Unknown") }
-        }
+        analytics.logEvent("error_occurred", buildMap {
+            put("error_type", errorType)
+            put("error_message", errorMessage.take(100))
+            screenName?.let { put("screen_name", it) }
+            contentId?.let { put("content_id", it) }
+            throwable?.let { put("error_details", it::class.simpleName ?: "Unknown") }
+        })
     }
 
     override fun logParseError(
@@ -264,12 +253,12 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         errorMessage: String,
         apiEndpoint: String?
     ) {
-        analytics.logEvent("parse_error") {
-            param("content_type", contentType.value)
-            param("content_id", contentId)
-            param("error_message", errorMessage.take(100))
-            apiEndpoint?.let { param("api_endpoint", it) }
-        }
+        analytics.logEvent("parse_error", buildMap {
+            put("content_type", contentType.value)
+            put("content_id", contentId)
+            put("error_message", errorMessage.take(100))
+            apiEndpoint?.let { put("api_endpoint", it) }
+        })
     }
 
     override fun logNetworkError(
@@ -278,12 +267,12 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         httpStatus: Int?,
         contentType: ContentType?
     ) {
-        analytics.logEvent("network_error") {
-            param("api_endpoint", endpoint.take(100))
-            param("error_message", errorMessage.take(100))
-            httpStatus?.let { param("http_status", it.toString()) }
-            contentType?.let { param("content_type", it.value) }
-        }
+        analytics.logEvent("network_error", buildMap {
+            put("api_endpoint", endpoint.take(100))
+            put("error_message", errorMessage.take(100))
+            httpStatus?.let { put("http_status", it.toString()) }
+            contentType?.let { put("content_type", it.value) }
+        })
     }
 
     override fun logScreenLoadTime(
@@ -291,11 +280,11 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         loadTimeMs: Long,
         dataSource: String?
     ) {
-        analytics.logEvent("screen_load_time") {
-            param("screen_name", screenName.screenName)
-            param("load_time_ms", loadTimeMs.toString())
-            dataSource?.let { param("data_source", it) }
-        }
+        analytics.logEvent("screen_load_time", buildMap {
+            put("screen_name", screenName.screenName)
+            put("load_time_ms", loadTimeMs.toString())
+            dataSource?.let { put("data_source", it) }
+        })
     }
 
     override fun logUserStuck(
@@ -303,11 +292,11 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         timeOnScreenSeconds: Long,
         lastAction: String?
     ) {
-        analytics.logEvent("user_stuck") {
-            param("screen_name", screenName.screenName)
-            param("time_on_screen_seconds", timeOnScreenSeconds.toString())
-            lastAction?.let { param("user_action", it) }
-        }
+        analytics.logEvent("user_stuck", buildMap {
+            put("screen_name", screenName.screenName)
+            put("time_on_screen_seconds", timeOnScreenSeconds.toString())
+            lastAction?.let { put("user_action", it) }
+        })
     }
 
     override fun logBackPressed(
@@ -315,10 +304,10 @@ class FirebaseAnalyticsHelperImpl : AnalyticsHelper {
         timeOnScreenSeconds: Long,
         lastAction: String?
     ) {
-        analytics.logEvent("back_pressed") {
-            param("screen_name", currentScreen.screenName)
-            param("time_on_screen_seconds", timeOnScreenSeconds.toString())
-            lastAction?.let { param("user_action", it) }
-        }
+        analytics.logEvent("back_pressed", buildMap {
+            put("screen_name", currentScreen.screenName)
+            put("time_on_screen_seconds", timeOnScreenSeconds.toString())
+            lastAction?.let { put("user_action", it) }
+        })
     }
 }

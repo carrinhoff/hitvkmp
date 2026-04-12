@@ -10,8 +10,8 @@ kotlin {
             implementation(project(":shared:core:billing"))
         }
         androidMain.dependencies {
-            implementation(libs.androidx.tv.foundation)
-            implementation(libs.androidx.tv.material)
+            implementation(libs.findLibrary("androidx-tv-foundation").get())
+            implementation(libs.findLibrary("androidx-tv-material").get())
         }
     }
 }

@@ -3,8 +3,8 @@ package pt.hitv.core.domain.repositories
 import app.cash.paging.PagingData
 import kotlinx.coroutines.flow.Flow
 import pt.hitv.core.model.*
-import pt.hitv.core.model.xml.Tv
 import pt.hitv.core.common.Resources
+import pt.hitv.epg.EpgDomainData
 
 interface StreamRepository {
 
@@ -23,10 +23,10 @@ interface StreamRepository {
         epgUrlOverride: String? = null,
         onChannelProgress: suspend (channelsProcessed: Int, totalChannels: Int) -> Unit,
         onProgrammeProgress: suspend (programmesProcessed: Int, totalProgrammes: Int) -> Unit // Add this new callback
-    ): Resources<Tv>
+    ): Resources<EpgDomainData>
 
     suspend fun insertEpgDB(
-        epgList: Tv?,
+        epgList: EpgDomainData?,
         onChannelProgress: suspend (channelsProcessed: Int, totalChannels: Int) -> Unit,
         onProgrammeProgress: suspend (programmesProcessed: Int, totalProgrammes: Int) -> Unit // Add this new callback
     )

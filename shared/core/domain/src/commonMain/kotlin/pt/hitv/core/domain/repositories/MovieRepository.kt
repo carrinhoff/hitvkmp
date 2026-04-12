@@ -2,7 +2,6 @@ package pt.hitv.core.domain.repositories
 
 import app.cash.paging.PagingData
 import kotlinx.coroutines.flow.Flow
-import pt.hitv.core.database.entity.*
 import pt.hitv.core.model.*
 import pt.hitv.core.model.cast.CastResponse
 import pt.hitv.core.model.movieInfo.CachedMovieInfo
@@ -16,8 +15,8 @@ interface MovieRepository {
     suspend fun getCategoriesWithMovies(): List<CategoryWithMovie>
     suspend fun getMovies(username: String, password: String): Resources<List<Movie>>
     suspend fun getMovieInfo(username: String, password: String, vodId: String): Resources<MovieInfoResponse>
-    suspend fun insertCategoriesMovies(entitiesCategoryVod: ArrayList<EntityCategoryVod>)
-    suspend fun insertMovies(entitiesMovies: ArrayList<EntityMovie>)
+    suspend fun insertCategoriesMovies(entitiesCategoryVod: ArrayList<Any>)
+    suspend fun insertMovies(entitiesMovies: ArrayList<Any>)
     suspend fun insertMovieInfo(movieInfo: MovieInfoResponse)
     suspend fun getMovieInfoCached(streamId: String): Resources<CachedMovieInfo?>
     suspend fun fetchMoviesData(): Resources<List<Movie>>
