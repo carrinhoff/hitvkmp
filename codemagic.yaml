@@ -1,0 +1,117 @@
+workflows:
+  ios-testflight:
+    name: iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: CodeMagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: pt.hitv.app
+      vars:
+        XCODE_SCHEME: "iosApp"
+      xcode: latest
+      java: 17
+    scripts:
+      - name: Set up Gradle
+        script: |
+          chmod +x ./gradlew
+
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+
+      - name: Generate app icon
+        script: |
+          ICON_DIR=iosApp/iosApp/Assets.xcassets/AppIcon.appiconset
+          if [ ! -f "$ICON_DIR/app-icon-1024.png" ]; then
+            python3 -c "
+          import struct, zlib
+          W = H = 1024
+          row = b''
+          for x in range(W):
+              row += bytes([30, 144, 255, 255])
+          raw = b''
+          for y in range(H):
+              raw += b'\x00' + row
+          def chunk(ctype, data):
+              c = ctype + data
+              return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+          with open('$ICON_DIR/app-icon-1024.png', 'wb') as f:
+              f.write(b'\x89PNG\r\n\x1a\n')
+              f.write(chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 6, 0, 0, 0)))
+              f.write(chunk(b'IDAT', zlib.compress(raw, 9)))
+              f.write(chunk(b'IEND', b''))
+          "
+            echo "Generated placeholder app icon"
+          fi
+
+      - name: Build Kotlin iOS framework
+        script: |
+          ./gradlew :shared:core:navigation:linkReleaseFrameworkIosArm64
+
+      - name: Build & archive iOS app
+        script: |
+          cd iosApp
+          xcodebuild archive \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -archivePath $CM_BUILD_DIR/build/iosApp.xcarchive \
+            -destination "generic/platform=iOS" \
+            -allowProvisioningUpdates \
+            DEVELOPMENT_TEAM="5XNB9Q6229"
+
+      - name: Export IPA
+        script: |
+          cat > /tmp/ExportOptions.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store-connect</string>
+              <key>teamID</key>
+              <string>5XNB9Q6229</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>pt.hitv.app</key>
+                  <string>HITV AppStore</string>
+              </dict>
+              <key>signingCertificate</key>
+              <string>Apple Distribution</string>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath $CM_BUILD_DIR/build/iosApp.xcarchive \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            -exportPath $CM_BUILD_DIR/build/ios/ipa
+
+      - name: Upload to TestFlight
+        script: |
+          IPA_FILE=$(find $CM_BUILD_DIR/build/ios/ipa -name "*.ipa" | head -1)
+          echo "IPA built successfully: $IPA_FILE"
+          # TODO: Add your App Store Connect API key
+          # xcrun altool --upload-app --type ios --file "$IPA_FILE" --apiKey "YOUR_KEY" --apiIssuer "YOUR_ISSUER"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/iosApp.xcarchive
+
+  android-debug:
+    name: Android Debug APK
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      java: 17
+    scripts:
+      - name: Build APK
+        script: |
+          chmod +x ./gradlew
+          ./gradlew :androidApp:assembleDebug
+    artifacts:
+      - androidApp/build/outputs/apk/debug/*.apk
