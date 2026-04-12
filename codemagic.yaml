@@ -95,8 +95,9 @@ workflows:
         script: |
           IPA_FILE=$(find $CM_BUILD_DIR/build/ios/ipa -name "*.ipa" | head -1)
           echo "IPA built successfully: $IPA_FILE"
-          # TODO: Add your App Store Connect API key
-          # xcrun altool --upload-app --type ios --file "$IPA_FILE" --apiKey "YOUR_KEY" --apiIssuer "YOUR_ISSUER"
+          mkdir -p ~/private_keys
+          echo "$APP_STORE_CONNECT_KEY" | base64 -D > ~/private_keys/AuthKey_Q3RKNJDH5H.p8
+          xcrun altool --upload-app --type ios --file "$IPA_FILE" --apiKey "Q3RKNJDH5H" --apiIssuer "7c6b2172-3e5f-4f15-bad4-ed5baea556cb"
 
     artifacts:
       - build/ios/ipa/*.ipa
