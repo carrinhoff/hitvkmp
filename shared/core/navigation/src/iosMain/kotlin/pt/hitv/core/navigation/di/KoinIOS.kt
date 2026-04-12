@@ -1,4 +1,4 @@
-package pt.hitv.core.common.di
+package pt.hitv.core.navigation.di
 
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
@@ -17,18 +17,20 @@ import pt.hitv.core.sync.di.syncModule
 import pt.hitv.core.sync.di.syncPlatformModule
 import pt.hitv.core.designsystem.theme.ThemeManager
 import pt.hitv.core.data.manager.PairingAnalyticsTracker
+import pt.hitv.core.common.di.commonModule
 
 /**
  * Initialize Koin for iOS.
  *
  * Called from Swift via `KoinIOSKt.doInitKoinIOS()`.
- * Aggregates all shared modules and provides iOS-specific
- * (NoOp) implementations for analytics, crash reporting, and feature flags.
+ * Moved from core:common to core:navigation because this module
+ * has access to all core dependencies (data, database, network, sync, billing).
  */
 fun initKoinIOS() {
     startKoin {
         modules(
             // Core - shared (commonMain)
+            commonModule,
             dataModule,
             databaseModule,
             networkModule,
@@ -47,20 +49,12 @@ fun initKoinIOS() {
 
 /**
  * iOS platform module providing NoOp implementations.
- *
- * When Firebase KMP SDK support for iOS is integrated,
- * replace these with real Firebase implementations.
  */
 val iosPlatformModule = module {
-    // Analytics - NoOp until Firebase iOS integration
     single<AnalyticsHelper> { NoOpAnalyticsHelper() }
     single<CrashReportingHelper> { NoOpCrashReportingHelper() }
     single<FeatureFlagManager> { NoOpFeatureFlagManager() }
-
-    // ThemeManager
     single { ThemeManager(preferencesHelper = get()) }
-
-    // PairingAnalyticsTracker - NoOp for iOS
     single<PairingAnalyticsTracker> {
         object : PairingAnalyticsTracker {
             override fun logCredentialsReceivedDetailed(
@@ -70,9 +64,7 @@ val iosPlatformModule = module {
                 username: String?,
                 password: String?,
                 m3uUrl: String?
-            ) {
-                // No-op on iOS
-            }
+            ) {}
         }
     }
 }

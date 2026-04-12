@@ -27,5 +27,12 @@ kotlin {
             implementation(libs.findLibrary("kotlinx-serialization-json").get())
             implementation(libs.findLibrary("koin-compose").get())
         }
+        // KoinIOS.kt needs these for Koin module aggregation
+        iosMain.dependencies {
+            implementation(project(":shared:core:data"))
+            implementation(project(":shared:core:database"))
+            implementation(project(":shared:core:network"))
+            implementation(project(":shared:core:billing"))
+        }
     }
 }
