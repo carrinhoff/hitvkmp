@@ -1,0 +1,8 @@
+{
+  "locationBySourceSetName": {
+    "appleMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\common\\build\\classes\\kotlin\\metadata\\appleMain\\klib\\common_appleMain",
+    "commonMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\common\\build\\classes\\kotlin\\metadata\\commonMain",
+    "iosMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\common\\build\\classes\\kotlin\\metadata\\iosMain\\klib\\common_iosMain",
+    "nativeMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\common\\build\\classes\\kotlin\\metadata\\nativeMain\\klib\\common_nativeMain"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "locationBySourceSetName": {
+    "appleMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\classes\\kotlin\\metadata\\appleMain\\klib\\billing_appleMain",
+    "commonMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\classes\\kotlin\\metadata\\commonMain",
+    "iosMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\classes\\kotlin\\metadata\\iosMain\\klib\\billing_iosMain",
+    "nativeMain": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\classes\\kotlin\\metadata\\nativeMain\\klib\\billing_nativeMain"
+  }
+}

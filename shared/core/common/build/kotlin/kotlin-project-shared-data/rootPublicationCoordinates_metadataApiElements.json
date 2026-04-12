@@ -1,0 +1,8 @@
+{
+  "buildPath": ":",
+  "projectPath": ":shared:core:common",
+  "moduleId": {
+    "groupId": "HITV-KMP.shared.core",
+    "moduleId": "common"
+  }
+}

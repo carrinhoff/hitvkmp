@@ -1,0 +1,322 @@
+[
+  {
+    "moduleId": "module org.jetbrains.kotlin:kotlin-stdlib:2.1.21",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlin-kotlin-stdlib-2.1.21-commonMain-uBNgdg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-coroutines-core-1.10.1-concurrentMain-KUhp4Q.klib",
+    "sourceSetName": "concurrentMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-coroutines-core-1.10.1-commonMain-KUhp4Q.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.insert-koin:koin-core:4.0.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\io.insert-koin-koin-core-4.0.2-commonMain-LKCCMw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.insert-koin:koin-compose:4.0.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\io.insert-koin-koin-compose-4.0.2-commonMain-WT5CLw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.insert-koin:koin-compose-viewmodel:4.0.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\io.insert-koin-koin-compose-viewmodel-4.0.2-commonMain-QESlww.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "project ::shared:core:common",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\common\\build\\classes\\kotlin\\metadata\\commonMain",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.runtime:runtime:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.runtime-runtime-1.6.11-commonMain-CVJWAg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.insert-koin:koin-core-viewmodel:4.0.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\io.insert-koin-koin-core-viewmodel-4.0.2-commonMain-KN18gA.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.androidx.lifecycle-lifecycle-viewmodel-compose-2.8.3-commonMain-JkV53A.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "project ::shared:core:model",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\model\\build\\classes\\kotlin\\metadata\\iosMain\\klib\\model_iosMain",
+    "sourceSetName": "iosMain"
+  },
+  {
+    "moduleId": "project ::shared:core:model",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\model\\build\\classes\\kotlin\\metadata\\appleMain\\klib\\model_appleMain",
+    "sourceSetName": "appleMain"
+  },
+  {
+    "moduleId": "project ::shared:core:model",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\model\\build\\classes\\kotlin\\metadata\\nativeMain\\klib\\model_nativeMain",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "project ::shared:core:model",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\model\\build\\classes\\kotlin\\metadata\\commonMain",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module com.russhwolf:multiplatform-settings:1.2.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\com.russhwolf-multiplatform-settings-1.2.0-apple64Main-eVHYWw.klib",
+    "sourceSetName": "apple64Main"
+  },
+  {
+    "moduleId": "module com.russhwolf:multiplatform-settings:1.2.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\com.russhwolf-multiplatform-settings-1.2.0-appleMain-eVHYWw.klib",
+    "sourceSetName": "appleMain"
+  },
+  {
+    "moduleId": "module com.russhwolf:multiplatform-settings:1.2.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\com.russhwolf-multiplatform-settings-1.2.0-commonMain-bVdRsg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module com.russhwolf:multiplatform-settings-coroutines:1.2.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\com.russhwolf-multiplatform-settings-coroutines-1.2.0-multithreadedMain-Hextog.klib",
+    "sourceSetName": "multithreadedMain"
+  },
+  {
+    "moduleId": "module com.russhwolf:multiplatform-settings-coroutines:1.2.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\com.russhwolf-multiplatform-settings-coroutines-1.2.0-commonMain-Hextog.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-datetime-0.6.2-darwinMain-O4UcJA.klib",
+    "sourceSetName": "darwinMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-datetime-0.6.2-tzdbOnFilesystemMain-fgfANw.klib",
+    "sourceSetName": "tzdbOnFilesystemMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-datetime-0.6.2-tzfileMain-fgfANw.klib",
+    "sourceSetName": "tzfileMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-datetime-0.6.2-nativeMain-fgfANw.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-datetime-0.6.2-commonKotlinMain-fgfANw.klib",
+    "sourceSetName": "commonKotlinMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-datetime-0.6.2-commonMain-fgfANw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.3",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.androidx.lifecycle-lifecycle-viewmodel-2.8.3-commonMain-I44vqw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.androidx.lifecycle-lifecycle-viewmodel-savedstate-2.8.3-commonMain-nn5erw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.androidx.core:core-bundle:1.0.1",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.androidx.core-core-bundle-1.0.1-commonMain-fXRodQ.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.androidx.savedstate:savedstate:1.2.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.androidx.savedstate-savedstate-1.2.2-commonMain-rDkiiA.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.3",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.androidx.lifecycle-lifecycle-common-2.8.3-commonMain-FPlmfg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.runtime:runtime-saveable:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.runtime-runtime-saveable-1.6.11-commonMain-pCPplQ.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-1.6.11-commonMain-OrzU9w.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-serialization-json-1.8.0-nativeMain-sWF2lQ.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-serialization-json-1.8.0-commonMain-sWF2lQ.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-serialization-core-1.8.0-nativeMain-tao8ug.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.0",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-kotlinx-serialization-core-1.8.0-commonMain-tao8ug.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.annotation-internal:annotation:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.annotation-internal-annotation-1.6.11-commonMain-cNNKSA.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-geometry:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-geometry-1.6.11-commonMain-zDj2GQ.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-graphics:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-graphics-1.6.11-nativeMain-M9RlEw.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-graphics:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-graphics-1.6.11-skikoExcludingWebMain-jqr5iw.klib",
+    "sourceSetName": "skikoExcludingWebMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-graphics:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-graphics-1.6.11-jsNativeMain-jqr5iw.klib",
+    "sourceSetName": "jsNativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-graphics:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-graphics-1.6.11-skikoMain-jqr5iw.klib",
+    "sourceSetName": "skikoMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-graphics:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-graphics-1.6.11-commonMain-jqr5iw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-text:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-text-1.6.11-darwinMain-DK5x5Q.klib",
+    "sourceSetName": "darwinMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-text:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-text-1.6.11-nativeMain-DK5x5Q.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-text:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-text-1.6.11-jsNativeMain-aUvkxg.klib",
+    "sourceSetName": "jsNativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-text:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-text-1.6.11-skikoMain-aUvkxg.klib",
+    "sourceSetName": "skikoMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-text:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-text-1.6.11-commonMain-aUvkxg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-unit:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-unit-1.6.11-jsNativeMain-vwDMdg.klib",
+    "sourceSetName": "jsNativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-unit:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-unit-1.6.11-jbMain-vwDMdg.klib",
+    "sourceSetName": "jbMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-unit:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-unit-1.6.11-commonMain-vwDMdg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-util:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-util-1.6.11-uikitMain-4Hpl6Q.klib",
+    "sourceSetName": "uikitMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-util:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-util-1.6.11-commonMain-LLOBPg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.collection-internal:collection:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.collection-internal-collection-1.6.11-jsNativeMain-hcu3Ug.klib",
+    "sourceSetName": "jsNativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.collection-internal:collection:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.collection-internal-collection-1.6.11-jbMain-hcu3Ug.klib",
+    "sourceSetName": "jbMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.collection-internal:collection:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.collection-internal-collection-1.6.11-commonMain-hcu3Ug.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.skiko:skiko:0.8.4",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.skiko-skiko-0.8.4-iosMain-1T2ZCw.klib",
+    "sourceSetName": "iosMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.skiko:skiko:0.8.4",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.skiko-skiko-0.8.4-darwinMain-1T2ZCw.klib",
+    "sourceSetName": "darwinMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.skiko:skiko:0.8.4",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.skiko-skiko-0.8.4-nativeMain-DbI_Jg.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.skiko:skiko:0.8.4",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.skiko-skiko-0.8.4-nativeJsMain-DbI_Jg.klib",
+    "sourceSetName": "nativeJsMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.skiko:skiko:0.8.4",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.skiko-skiko-0.8.4-commonMain-DbI_Jg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:atomicfu:0.23.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-atomicfu-0.23.2-nativeMain-yBS35w.klib",
+    "sourceSetName": "nativeMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:atomicfu:0.23.2",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.kotlinx-atomicfu-0.23.2-commonMain-yBS35w.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.compose.ui:ui-uikit:1.6.11",
+    "file": "C:\\Users\\Fabio\\StudioProjects\\hitv-kmp\\shared\\core\\billing\\build\\kotlinTransformedMetadataLibraries\\commonMain\\org.jetbrains.compose.ui-ui-uikit-1.6.11-uikitMain-oguluQ.klib",
+    "sourceSetName": "uikitMain"
+  }
+]

@@ -1,0 +1,2 @@
+
+<common_commonMain>:pt.hitv.core.common:pt.hitv.core.common.analytics:pt.hitv.core.common.constants:"pt.hitv.core.common.crashreporting:pt.hitv.core.common.datastore:pt.hitv.core.common.di: pt.hitv.core.common.featureflags:pt.hitv.core.common.helpers:pt.hitv.core.common.locale:pt.hitv.core.common.navigation:pt.hitv.core.common.util
