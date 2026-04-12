@@ -54,7 +54,10 @@ import pt.hitv.feature.channels.StreamViewModel
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.designsystem.theme.getThemeColors
 import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 
 private const val TAG = "ChannelPreviewPlayer"
 private const val PREVIEW_VOLUME = 0.5f
@@ -63,6 +66,7 @@ private const val PREVIEW_VOLUME = 0.5f
  * Android-only video preview player component for channels.
  * Uses ExoPlayer for video playback - not available on iOS.
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun ChannelPreviewPlayer(
     channel: Channel,
@@ -84,68 +88,94 @@ fun ChannelPreviewPlayer(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isPlayerReady by remember { mutableStateOf(false) }
 
-    var isSoundEnabled by remember { mutableStateOf(preferencesHelper.getChannelPreviewSoundEnabled()) }
+    var isSoundEnabled by remember { mutableStateOf(false) }
 
+    // Fetch user's output formats to normalize the URL (same as original project)
     var userOutputFormats by remember { mutableStateOf<List<String>?>(null) }
     var formatsLoaded by remember { mutableStateOf(false) }
-    val previewStartTime = remember { System.currentTimeMillis() }
     LaunchedEffect(channel.userId) {
         userOutputFormats = try {
             viewModel.getCredentialsByUserId(channel.userId)?.allowedOutputFormats
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
-        }
+        } catch (_: Exception) { null }
         formatsLoaded = true
     }
 
     if (formatsLoaded) {
-        DisposableEffect(channel.streamUrl, userOutputFormats) {
-            val player = ExoPlayer.Builder(context)
-                .setLoadControl(
-                    DefaultLoadControl.Builder()
-                        .setBufferDurationsMs(5_000, 15_000, 1_000, 2_000)
-                        .build()
-                )
-                .build().apply {
-                    val mediaItem = MediaItem.fromUri(channel.streamUrl ?: "")
-                    setMediaItem(mediaItem)
-                    prepare()
-                    playWhenReady = true
-                    volume = when {
-                        isPipActive -> 0f
-                        isSoundEnabled -> PREVIEW_VOLUME
-                        else -> 0f
-                    }
-                    repeatMode = Player.REPEAT_MODE_ONE
+    DisposableEffect(channel.streamUrl, userOutputFormats) {
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(8000)
+            .setReadTimeoutMs(8000)
+            .setAllowCrossProtocolRedirects(true)
 
-                    addListener(object : Player.Listener {
-                        override fun onPlaybackStateChanged(state: Int) {
-                            playerState = state
-                            isPlayerReady = state == Player.STATE_READY
-                        }
+        // Normalize URL: append output format if no known extension
+        // (matches original MediaSourceFactory.normalizePlaybackUrl)
+        val rawUrl = (channel.streamUrl ?: "").trim()
+        val outputFormat = userOutputFormats?.firstOrNull()?.takeIf { it.isNotEmpty() }
+            ?: preferencesHelper.getStoredTag("output").takeIf { it.isNotEmpty() }
+        val knownExtensions = listOf(".m3u8", ".mpd", ".ism", ".isml", ".ts", ".mp4", ".webm")
+        val hasKnownExtension = knownExtensions.any { rawUrl.endsWith(it, ignoreCase = true) }
+        val url = if (!outputFormat.isNullOrEmpty() && !hasKnownExtension && !rawUrl.contains(".m3u8", ignoreCase = true)) {
+            "$rawUrl.$outputFormat"
+        } else {
+            rawUrl
+        }
 
-                        override fun onPlayerError(error: PlaybackException) {
-                            errorMessage = error.message
-                        }
-                    })
+        val mediaItem = MediaItem.fromUri(url)
+        val path = android.net.Uri.parse(url).path ?: ""
+        val isHls = path.endsWith(".m3u8", ignoreCase = true)
+        val mediaSource = if (isHls) {
+            HlsMediaSource.Factory(httpDataSourceFactory)
+                .setAllowChunklessPreparation(true)
+                .createMediaSource(mediaItem)
+        } else {
+            // Progressive handles .ts, .mp4, and other formats
+            ProgressiveMediaSource.Factory(httpDataSourceFactory)
+                .createMediaSource(mediaItem)
+        }
+
+        val player = ExoPlayer.Builder(context)
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(5_000, 15_000, 1_000, 2_000)
+                    .build()
+            )
+            .build().apply {
+                setMediaSource(mediaSource)
+                prepare()
+                playWhenReady = true
+                volume = when {
+                    isPipActive -> 0f
+                    isSoundEnabled -> PREVIEW_VOLUME
+                    else -> 0f
                 }
-            exoPlayer = player
+                repeatMode = Player.REPEAT_MODE_ONE
 
-            val lifecycleObserver = object : DefaultLifecycleObserver {
-                override fun onPause(owner: LifecycleOwner) { exoPlayer?.playWhenReady = false }
-                override fun onResume(owner: LifecycleOwner) { exoPlayer?.playWhenReady = true }
-            }
-            lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        playerState = state
+                        isPlayerReady = state == Player.STATE_READY
+                    }
 
-            onDispose {
-                exoPlayer?.release()
-                exoPlayer = null
-                lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+                    override fun onPlayerError(error: PlaybackException) {
+                        errorMessage = error.message
+                    }
+                })
             }
+        exoPlayer = player
+
+        val lifecycleObserver = object : DefaultLifecycleObserver {
+            override fun onPause(owner: LifecycleOwner) { exoPlayer?.playWhenReady = false }
+            override fun onResume(owner: LifecycleOwner) { exoPlayer?.playWhenReady = true }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+
+        onDispose {
+            exoPlayer?.release()
+            exoPlayer = null
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
         }
     }
+    } // end if (formatsLoaded)
 
     LaunchedEffect(isPipActive, isSoundEnabled) {
         exoPlayer?.volume = when {

@@ -212,4 +212,4 @@
 
 The KMP project is **well-architected** with clean separation, proper layering, convention plugins, and real implementations (not stubs) for all core Android functionality. The 5 main tabs are feature-complete with search, filtering, paging, favorites, recently viewed, continue watching, and category browsing. The data layer is production-ready.
 
-Movie detail and series detail screens are done (with cast, trailer, favorites, recently viewed, playback position). The main remaining work is **players, category detail screens, and settings sub-screens**. TV layouts are out of scope (mobile-only target).
+All detail screens are done (movie detail, series detail, movie category, series category) with cast, trailer, favorites, recently viewed, playback position, paged grids, search, sort, shimmer skeletons, and scroll position preservation. The main remaining work is **players and settings sub-screens**. TV layouts are out of scope (mobile-only target).

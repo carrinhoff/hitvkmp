@@ -20,5 +20,6 @@ iosApp/build/
 *.xcuserdata
 
 # KMP
-/shared/*/build/
+**/build/
 /androidApp/build/
+.kotlin/
