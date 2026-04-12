@@ -70,7 +70,7 @@ actual fun ChannelPreviewComposable(
         val nsUrl = NSURL.URLWithString(streamUrl)
         val player = if (nsUrl != null) {
             AVPlayer(uRL = nsUrl).apply {
-                volume = 0f // Start muted
+                setVolume(0f) // Start muted
                 play()
             }
         } else null
@@ -128,7 +128,7 @@ actual fun ChannelPreviewComposable(
                 IconButton(
                     onClick = {
                         isMuted = !isMuted
-                        avPlayer?.volume = if (isMuted) 0f else 0.5f
+                        avPlayer?.setVolume(if (isMuted) 0f else 0.5f)
                     },
                     modifier = Modifier.size(40.dp).background(Color.Black.copy(alpha = 0.6f), CircleShape)
                 ) {
