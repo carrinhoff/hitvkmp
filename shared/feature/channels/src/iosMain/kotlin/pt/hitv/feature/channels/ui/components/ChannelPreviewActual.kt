@@ -128,7 +128,7 @@ actual fun ChannelPreviewComposable(
                 IconButton(
                     onClick = {
                         isMuted = !isMuted
-                        avPlayer?.isMuted = isMuted
+                        avPlayer?.let { it.isMuted = isMuted }
                     },
                     modifier = Modifier.size(40.dp).background(Color.Black.copy(alpha = 0.6f), CircleShape)
                 ) {
