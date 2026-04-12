@@ -96,7 +96,9 @@ workflows:
           IPA_FILE=$(find $CM_BUILD_DIR/build/ios/ipa -name "*.ipa" | head -1)
           echo "IPA built successfully: $IPA_FILE"
           mkdir -p ~/private_keys
-          echo "$APP_STORE_CONNECT_KEY" | base64 -D > ~/private_keys/AuthKey_Q3RKNJDH5H.p8
+          echo "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR1RBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJIa3dkd0lCQVFRZ2xnbnM5RW55L2dRQ001NkcKSndtMTQ5cVRzWUxuVDhlRzdOK0pWWkI1dklXZ0NnWUlLb1pJemowREFRZWhSQU5DQUFUSnNvWWg5UVk0d3NBUgowUHUyeXZKV2tzTkR1U2Y2UURKZXZYdTFIa0ZLWmI3WG42UzRKZHNWbjhoV0VPUzNMcGFIS1dSVTZ6V0xJcFVYCnN0NlNHZS9LCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0=" | base64 -D > ~/private_keys/AuthKey_Q3RKNJDH5H.p8
+          echo "Key file size: $(wc -c < ~/private_keys/AuthKey_Q3RKNJDH5H.p8) bytes"
+          head -1 ~/private_keys/AuthKey_Q3RKNJDH5H.p8
           xcrun altool --upload-app --type ios --file "$IPA_FILE" --apiKey "Q3RKNJDH5H" --apiIssuer "7c6b2172-3e5f-4f15-bad4-ed5baea556cb"
 
     artifacts:
