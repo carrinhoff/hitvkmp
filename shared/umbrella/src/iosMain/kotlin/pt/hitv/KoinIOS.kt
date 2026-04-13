@@ -9,6 +9,11 @@ import pt.hitv.core.common.crashreporting.NoOpCrashReportingHelper
 import pt.hitv.core.common.featureflags.FeatureFlagManager
 import pt.hitv.core.common.featureflags.NoOpFeatureFlagManager
 import pt.hitv.core.common.di.commonModule
+import pt.hitv.core.data.security.CryptoManager
+import com.russhwolf.settings.NSUserDefaultsSettings
+import com.russhwolf.settings.ObservableSettings
+import com.russhwolf.settings.Settings
+import platform.Foundation.NSUserDefaults
 import pt.hitv.core.billing.di.billingPlatformModule
 import pt.hitv.core.data.di.dataModule
 import pt.hitv.core.database.di.databaseModule
@@ -76,8 +81,14 @@ fun initKoinIOS() {
 }
 
 private val iosPlatformModule = module {
+    // Settings (multiplatform-settings backed by NSUserDefaults)
+    single<Settings> { NSUserDefaultsSettings(NSUserDefaults.standardUserDefaults) }
+    single<ObservableSettings> { NSUserDefaultsSettings(NSUserDefaults.standardUserDefaults) }
+    // Analytics/Crash/FeatureFlags — NoOp for iOS
     single<AnalyticsHelper> { NoOpAnalyticsHelper() }
     single<CrashReportingHelper> { NoOpCrashReportingHelper() }
     single<FeatureFlagManager> { NoOpFeatureFlagManager() }
     single { ThemeManager(preferencesHelper = get()) }
+    // CryptoManager — no encryption on iOS (same as Android KMP)
+    single { CryptoManager() }
 }
