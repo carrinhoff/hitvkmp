@@ -11,7 +11,6 @@ import pt.hitv.core.common.featureflags.NoOpFeatureFlagManager
 import pt.hitv.core.common.di.commonModule
 import pt.hitv.core.billing.di.billingPlatformModule
 import pt.hitv.core.data.di.dataModule
-import pt.hitv.core.data.manager.PairingAnalyticsTracker
 import pt.hitv.core.database.di.databaseModule
 import pt.hitv.core.database.di.databasePlatformModule
 import pt.hitv.core.designsystem.theme.ThemeManager
@@ -81,13 +80,4 @@ private val iosPlatformModule = module {
     single<CrashReportingHelper> { NoOpCrashReportingHelper() }
     single<FeatureFlagManager> { NoOpFeatureFlagManager() }
     single { ThemeManager(preferencesHelper = get()) }
-    single<PairingAnalyticsTracker> {
-        object : PairingAnalyticsTracker {
-            override fun logCredentialsReceivedDetailed(
-                sessionId: String, pairingType: String,
-                url: String?, username: String?,
-                password: String?, m3uUrl: String?
-            ) {}
-        }
-    }
 }

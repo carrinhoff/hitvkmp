@@ -14,7 +14,6 @@ kotlin {
             implementation(project(":shared:epg"))
             implementation(project(":shared:core:billing"))
             implementation(libs.findLibrary("paging-common").get())
-            implementation(libs.findLibrary("firebase-database").get())
             implementation(libs.findLibrary("kotlinx-datetime").get())
         }
         androidMain.dependencies {

@@ -3,7 +3,6 @@ package pt.hitv.core.data.di
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import pt.hitv.core.data.manager.ParentalControlManagerImpl
-import pt.hitv.core.data.manager.PairingManager
 import pt.hitv.core.data.manager.UserSessionManager
 import pt.hitv.core.data.parser.M3uParser
 import pt.hitv.core.data.repository.AccountManagerRepositoryImpl
@@ -60,13 +59,6 @@ val dataModule: Module = module {
         UserSessionManager(
             preferencesHelper = get(),
             dataStore = get()
-        )
-    }
-
-    single {
-        PairingManager(
-            analyticsTracker = get(),
-            pairingSessions = get()
         )
     }
 
