@@ -1,259 +1,264 @@
-# KMP Migration Audit
+# HITV — KMP Migration Audit
 
-**Date:** 2026-04-12
-**Original Project:** `C:\Users\Fabio\StudioProjects\hitv` (Android-only)
-**KMP Project:** `C:\Users\Fabio\StudioProjects\hitv-kmp` (Kotlin Multiplatform)
-**Target Platforms:** Android + iOS (mobile only — no TV layouts)
-
----
-
-## Migration Status: All 5 Tabs + Navigation DONE
-
-| Component | Original (hitv) | KMP (hitv-kmp) | Status |
-|-----------|-----------------|----------------|--------|
-| **Navigation** | Compose Navigation + `@Serializable` routes | Voyager + ScreenRegistry | ✅ Done |
-| **Scaffold** | `HitvMainScreen` (portrait/landscape/TV) | `AdaptiveScaffold` (portrait/landscape) | ✅ Done |
-| **Channels Tab** | StreamViewModel + Paging + EPG + Search | StreamViewModel + Paging + EPG + Search | ✅ Done |
-| **Movies Tab** | MovieViewModel + Paging + Sort + Home Feed | MovieViewModel + Paging + Sort + Home Feed | ✅ Done |
-| **Series Tab** | SeriesViewModel + Paging + Sort + Home Feed | SeriesViewModel + Paging + Sort + Home Feed | ✅ Done |
-| **Premium Tab** | Stateless + BillingManager | Stateless + BillingManager | ✅ Done |
-| **More/Settings** | MoreOptionsViewModel + sub-screens | OptionsScreen + MoreOptionsViewModel | ✅ Done |
-| **Login** | LoginViewModel + Xtream + M3U | LoginViewModel + Xtream + M3U | ✅ Done |
+**Last Updated:** 2026-04-14  
+**Original Project:** `hitv` (Android-only, Kotlin + Jetpack Compose)  
+**KMP Project:** `hitv-kmp` (Kotlin Multiplatform — Android + iOS)  
+**Repository:** [github.com/carrinhoff/hitvkmp](https://github.com/carrinhoff/hitvkmp)  
+**Target Platforms:** Android (mobile) + iOS (mobile) — no TV  
 
 ---
 
-## Data Layer: FULLY MIGRATED
+## 1. Executive Summary
 
-| Layer | Original | KMP | Status |
-|-------|----------|-----|--------|
-| **Database** | Room (22 entities, 7 DAOs) | SQLDelight (13 tables, 200+ queries) | ✅ Done |
-| **Network** | Retrofit + Gson | Ktor + kotlinx.serialization | ✅ Done |
-| **Repositories** | 6 repos (Hilt) | 6 repos (Koin) | ✅ Done |
-| **Use Cases** | 8 use cases | 8 use cases | ✅ Done |
-| **Models** | 40+ domain models | 40+ domain models | ✅ Done |
-| **DI** | Hilt (KSP) | Koin (24 modules) | ✅ Done |
-| **Sync** | WorkManager | WorkManager (Android), stub (iOS) | ✅ Done (Android) |
-| **Billing** | Google Play Billing | Google Play Billing + fake mode | ✅ Done (Android) |
-| **EPG** | Simple XML Framework (Java) | Pure Kotlin regex parser | ✅ Done (improved) |
+HITV is an IPTV streaming app migrated from Android-only to Kotlin Multiplatform (KMP). The migration shares **~90% of code** between Android and iOS — including all UI (Jetpack Compose Multiplatform), ViewModels, repositories, database, networking, and navigation. Only video playback rendering is platform-specific (ExoPlayer on Android, AVPlayer on iOS).
+
+**Current status:** The app is functional on both platforms. Login, data sync, all 5 main tabs, detail screens, category browsing, and live channel playback all work. The iOS build is deployed to TestFlight via GitHub Actions CI/CD. The main remaining gap is movie/series VOD playback.
 
 ---
 
-## Key Architecture Changes (Original → KMP)
+## 2. Architecture Overview
 
-| Area | Original | KMP | Rationale |
-|------|----------|-----|-----------|
-| Navigation | Compose Navigation | **Voyager** | Better KMP support, ScreenRegistry pattern |
-| DI | Hilt (KSP) | **Koin** | Multiplatform, no annotation processing |
-| Database | Room | **SQLDelight** | Multiplatform, type-safe SQL |
-| Network | Retrofit + Gson | **Ktor + kotlinx.serialization** | Multiplatform, Kotlin-native |
-| Preferences | EncryptedSharedPreferences | **multiplatform-settings** | Platform secure storage abstraction |
-| EPG Parser | Simple XML Framework (Java) | **Pure Kotlin regex** | No external dependency, multiplatform |
+### Tech Stack Comparison
 
----
+| Layer | Original (Android) | KMP (Android + iOS) |
+|-------|-------------------|---------------------|
+| **UI** | Jetpack Compose | Compose Multiplatform |
+| **Navigation** | Navigation Compose + `@Serializable` | Voyager + ScreenRegistry |
+| **DI** | Hilt (KSP) | Koin (multiplatform) |
+| **Database** | Room (22 entities, 7 DAOs, 20 migrations) | SQLDelight (13 tables, 200+ queries) |
+| **Network** | Retrofit + Gson | Ktor + kotlinx.serialization |
+| **Preferences** | EncryptedSharedPreferences | multiplatform-settings (NSUserDefaults on iOS) |
+| **Paging** | AndroidX Paging 3 | Cash App Paging (multiplatform) |
+| **Image Loading** | Coil 2 | Coil 3 (multiplatform) |
+| **Async** | Coroutines + Flow | Coroutines + Flow (same) |
+| **EPG Parser** | Simple XML Framework (Java) | Pure Kotlin regex parser |
+| **Live Player** | ExoPlayer (Activity) | ExoPlayer (Android) / AVPlayerViewController (iOS) |
+| **Preview Player** | ExoPlayer inline | ExoPlayer (Android) / AVPlayer + UIKitView (iOS) |
+| **Sync** | WorkManager | WorkManager (Android) / stub (iOS) |
+| **Billing** | Google Play Billing | Google Play Billing (Android) / stub (iOS) |
+| **Analytics** | Firebase Analytics | NoOp (both platforms, Firebase removed) |
 
-## Completed Features — Detail
+### Module Structure
 
-### Channels Tab (Live TV)
-- Search with real-time query filtering
-- Category filtering with dropdown selector
-- Bottom sheet for advanced category selection
-- Category counts display
-- Favorites management (toggle on long-click)
-- Recently viewed channels tracking
-- Pagination with Paging 3 (cash.paging)
-- EPG caching and display
-- Scroll-to-top signal handling
-- Analytics integration
-- Loading states and error handling
+```
+hitv-kmp/
+├── androidApp/                    # Android app (MainActivity, ChannelPlayerActivity)
+├── iosApp/                        # iOS app (SwiftUI entry, Xcode project)
+├── shared/
+│   ├── core/
+│   │   ├── model/                 # Data classes (Channel, Movie, TvShow, etc.)
+│   │   ├── domain/                # Repository interfaces + use cases
+│   │   ├── data/                  # Repository implementations, mappers, parsers
+│   │   ├── database/              # SQLDelight schema + queries
+│   │   ├── network/               # Ktor API services + DTOs
+│   │   ├── common/                # PreferencesHelper, analytics, platform helpers
+│   │   ├── navigation/            # Voyager routes, AdaptiveScaffold, screen registry
+│   │   ├── designsystem/          # Theme, colors, shared components
+│   │   ├── ui/                    # Shared UI components (cards, dialogs, skeletons)
+│   │   ├── sync/                  # WorkManager sync (Android), stub (iOS)
+│   │   └── billing/               # Google Play Billing (Android), stub (iOS)
+│   ├── feature/
+│   │   ├── auth/                  # Login, switch account
+│   │   ├── channels/              # Live TV browsing, channel preview
+│   │   ├── movies/                # Movie list, detail, category detail
+│   │   ├── series/                # Series list, detail, category detail
+│   │   ├── player/                # Player ViewModels, shared overlay UI, platform launchers
+│   │   ├── premium/               # Premium subscription screen
+│   │   └── settings/              # More options, theme, parental controls
+│   ├── epg/                       # EPG XMLTV parser
+│   └── umbrella/                  # iOS framework aggregator (produces "shared" framework)
+├── build-logic/                   # Gradle convention plugins
+└── .github/workflows/             # CI/CD (iOS TestFlight, Android APK)
+```
 
-### Movies Tab
-- **Home Feed sections:** All, Continue Watching, Favorites, Recently Viewed, Last Added, Category rows
-- Search (case-insensitive, 500 item limit)
-- Category filtering with dropdown + bottom sheet
-- Scroll spy (tracks visible category name)
-- Scroll to specific category from bottom sheet
-- Category counts display
-- Pagination with sorting (by Added Date, ascending/descending toggle)
-- Favorites toggle with visual feedback
-- Loading skeleton UI
-- Focus state management for TV (pendingFocus, activeFocus)
+### Platform-Specific Code (`expect/actual`)
 
-### Series Tab (TV Shows)
-- Same Home Feed layout as Movies (All, Continue Watching, Favorites, Recently Viewed, Last Added, Categories)
-- Search, category filtering, scroll spy
-- Sorting with ascending/descending
-- Seasons & Episodes data fetching
-- Focus state management for TV
-- Loading skeletons
-
-### Premium Tab
-- Annual Premium tier with "BEST VALUE" badge
-- Lifetime Premium tier
-- Price display (€ formatted)
-- Feature lists with checkmarks
-- Purchase buttons with animations
-- Premium status card (if already subscribed)
-- Trial status display with expiration date
-- Animated fade-in, gradient background
-
-### More/Settings Tab
-- Welcome header with expiration date display
-- Live TV, Movies, TV Shows quick-access cards (gradient)
-- Switch Account/Playlist button
-- Theme/Premium button
-- More Options button
-- Channel preview toggle
-- Account info display (username, hostname, expiration)
-- Language selection
-
-**More Options sub-features (original has, KMP status):**
-
-| Feature | Original | KMP | Status |
-|---------|----------|-----|--------|
-| Player engine selection (ExoPlayer/VLC) | `playerEngine` in MoreOptionsUiState | MoreOptionsViewModel has it | ✅ Done |
-| Live buffer size (small/medium/large/very_large) | `liveBufferSize` in MoreOptionsUiState | MoreOptionsViewModel has it | ✅ Done |
-| Channel preview toggle | `channelPreviewEnabled` | MoreOptionsViewModel has it | ✅ Done |
-| Background sync config (EPG/content intervals) | WorkerHelper integration | SyncManager | ✅ Done |
-| Language selection with app restart | `currentLanguage` | MoreOptionsViewModel has it | ✅ Done |
-| Theme settings (full UI with previews) | ThemeSettingsScreen | Not yet migrated | ⬜ P1 |
-| Parental controls (PIN, per-category) | ParentalControlScreen | Not yet migrated | ⬜ P1 |
-| Manage categories (reorder, visibility) | ManageCategoriesScreen | Not yet migrated | ⬜ P2 |
-| Feedback/suggestion form | SuggestionScreen | Not yet migrated | ⬜ P2 |
-| Discord community link | Button with URL | Basic button exists | ✅ Done |
-
-### Login Screen
-- TabRow: Xtream Credentials ↔ M3U URL
-- Xtream: Username, Password (visibility toggle), Server URL fields with validation
-- M3U: Playlist name, URL, EPG URL (optional) fields
-- Error dialog, loading overlay
-- Suggestions & Feedback button, Discord community link
-- Analytics tracking
+| Component | commonMain | androidMain | iosMain |
+|-----------|-----------|-------------|---------|
+| `PreferencesHelper` | Settings interface | EncryptedSharedPrefs | NSUserDefaults |
+| `PlatformDetector` | expect object | Android context checks | UIDevice checks |
+| `DatabaseDriverFactory` | expect class | Android SQLite driver | iOS SQLite driver |
+| `CryptoManager` | expect class | Passthrough (no encryption) | Passthrough (no encryption) |
+| `QRCodeGenerator` | expect object | ZXing library | Stub (not needed) |
+| `LocaleManager` | expect class | Android locale API | NSLocale |
+| `launchChannelPlayer()` | expect fun | Intent → ChannelPlayerActivity | AVPlayerViewController |
+| `launchMoviePlayer()` | expect fun | Intent → MoviePlayerActivity (TBD) | AVPlayerViewController (TBD) |
+| `ChannelPreviewComposable` | expect composable | ExoPlayer + AndroidView | AVPlayer + UIKitView |
 
 ---
 
-## Infrastructure — Real vs Stub
+## 3. Feature Completion Matrix
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| Android WorkManager Sync | ✅ Real | DataSyncWorker + EpgSyncWorker with progress tracking |
-| Android Google Play Billing | ✅ Real | Full BillingClient + fake mode for testing |
-| EPG XMLTV Parser | ✅ Real | Pure Kotlin regex parser, no external XML lib |
-| Firebase Analytics | ✅ Real | 30+ event types (NoOp until google-services.json added) |
-| Koin DI (24 modules) | ✅ Real | All layers wired, platform modules ready |
-| iOS Billing | ⬜ Stub | IosBillingManager — needs StoreKit 2 interop |
-| iOS Sync | ⬜ Stub | IosSyncScheduler — needs BGTaskScheduler Swift integration |
-| PremiumStatusProvider | ⬜ Stub | Hardcoded `false` in AndroidPlatformModule |
-| HitvApp hasAnnualOrLifetime | ⬜ Stub | Hardcoded `false`, should use BillingManager.isPremium |
+### Screens
 
----
+| Screen | Android | iOS | Notes |
+|--------|---------|-----|-------|
+| Login (Xtream credentials) | ✅ | ✅ | Username, password, server URL, validation |
+| Login (M3U URL) | ✅ | ✅ | Playlist name, URL, EPG URL |
+| Channels list | ✅ | ✅ | Paging, categories, search, favorites, EPG |
+| Channel preview | ✅ | ✅ | Inline video, muted by default, expand/collapse |
+| Channel player | ✅ | ✅ | Full-screen, PiP (Android), channel list sidebar, EPG overlay, sleep timer, aspect ratio, rotation |
+| Movies home feed | ✅ | ✅ | All, Continue Watching, Favorites, Recently Viewed, Last Added, category rows |
+| Movie detail | ✅ | ✅ | Poster, plot, TMDB cast, trailer button, play button, favorites |
+| Movie category grid | ✅ | ✅ | Paged 3-column grid, search, sort (Added/Name/Rating), category bottom sheet |
+| Series home feed | ✅ | ✅ | Same layout as movies |
+| Series detail | ✅ | ✅ | Season tabs, episode list with thumbnails + progress bars, trailer |
+| Series category grid | ✅ | ✅ | Same as movie category grid |
+| Premium | ✅ | ✅ | Annual/Lifetime tiers, pricing, feature lists |
+| More/Settings | ✅ | ✅ | Account info, quick access cards, language, player config |
+| **Movie player** | ❌ | ❌ | **Activity not yet created** |
+| **Series player** | ❌ | ❌ | **Activity not yet created** |
+| Switch Account | ⬜ | ⬜ | ViewModel exists, UI not wired |
+| Theme Settings | ⬜ | ⬜ | Not yet migrated |
+| Parental Controls | ⬜ | ⬜ | Not yet migrated |
+| EPG Full Grid | ⬜ | ⬜ | Not yet migrated |
 
-## What's Done
+### Data & Infrastructure
 
-### Screens / Features
+| Feature | Android | iOS | Notes |
+|---------|---------|-----|-------|
+| Xtream API login + data fetch | ✅ | ✅ | Full API integration |
+| M3U playlist parsing | ✅ | ✅ | Shared parser |
+| SQLDelight local database | ✅ | ✅ | 13 tables, 200+ queries |
+| Offline-first data loading | ✅ | ✅ | Cache-then-network pattern |
+| Differential sync | ✅ | ✅ | contentHash + syncVersion |
+| Background sync (WorkManager) | ✅ | ⬜ Stub | iOS needs BGTaskScheduler |
+| Paging (channels, movies, series) | ✅ | ✅ | Cash Paging multiplatform |
+| FTS search (movies, series) | ✅ | ✅ | SQLDelight FTS4 |
+| TMDB cast/crew fetching | ✅ | ✅ | API key in shared NetworkModule |
+| EPG parsing (XMLTV) | ✅ | ✅ | Pure Kotlin regex parser |
+| Favorites (channels, movies, series) | ✅ | ✅ | Toggle on long-click |
+| Recently viewed tracking | ✅ | ✅ | Auto-saved on detail view |
+| Continue watching | ✅ | ✅ | Playback position tracking |
+| Playback position resume | ✅ | ✅ | Saved per movie/episode |
+| Google Play Billing | ✅ | ⬜ Stub | iOS needs StoreKit 2 |
+| Shimmer loading skeletons | ✅ | ✅ | Category rows + grids |
 
-| Screen | Status |
-|--------|--------|
-| Login (Xtream + M3U) | ✅ Done |
-| All 5 tabs (Channels, Movies, Series, Premium, More) | ✅ Done |
-| Movie Detail (poster, plot, cast, trailer, favorites) | ✅ Done |
-| Series Detail (seasons, episodes, progress, trailer) | ✅ Done |
-| Movie Category Detail (paged grid, search, sort) | ✅ Done |
-| Series Category Detail (paged grid, search, sort) | ✅ Done |
-| Channel Preview (inline ExoPlayer/AVPlayer) | ✅ Done |
-| Channel Player (full-screen, PiP, channel list, EPG, sleep timer) | ✅ Done |
-| YouTube Trailer | ✅ Done (opens system browser/app) |
-| Shimmer skeletons | ✅ Done |
-| See All navigation | ✅ Done |
+### Player Features
 
-### Players
-
-| Player | Android | iOS | Status |
-|--------|---------|-----|--------|
-| Channel Player | ✅ ExoPlayer Activity + PiP | ✅ AVPlayerViewController | Done |
-| Channel Preview | ✅ ExoPlayer inline | ✅ AVPlayer + UIKitView | Done |
-| Movie Player | ❌ Activity not created | ❌ Not implemented | **P0 — needed for Play Store** |
-| Series Player | ❌ Activity not created | ❌ Not implemented | **P0 — needed for Play Store** |
-
-### CI/CD
-
-| Platform | Status |
-|----------|--------|
-| GitHub Actions (iOS TestFlight) | ✅ Working — auto builds on push to master |
-| Codemagic (backup) | ✅ Configured |
-| Android debug APK | ✅ Via GitHub Actions |
-
-### iOS-specific fixes applied
-
-- NSAppTransportSecurity (allow HTTP for IPTV servers)
-- CADisableMinimumFrameDurationOnPhone (Compose Multiplatform 120Hz)
-- iPad orientations for App Store upload
-- QR Pairing removed (TV-only, not needed)
-- Firebase removed (not needed on mobile)
-- CryptoManager stubbed (no encryption)
-- QRCodeGenerator stubbed
-- Umbrella framework module for single `shared` import
-- KoinIOS with all feature modules + screen registrations
-- Settings/ObservableSettings via NSUserDefaults
-- PremiumStatusProvider stub
-
----
-
-## What's Still Needed
-
-### Must Have (P0 — before Play Store)
-
-| What | Difficulty |
-|------|-----------|
-| **Movie Player Activity** (Android) + AVPlayer (iOS) | Medium |
-| **Series Player Activity** (Android) + AVPlayer (iOS) | Medium |
-| **App Icon** (not placeholder) | Design needed |
-| **Privacy Policy URL** | Easy (just a webpage) |
-| **Feature Graphic** (1024x500 for Play Store) | Design needed |
-
-### Nice to Have (P1)
-
-| What | Difficulty |
-|------|-----------|
-| Switch Account screen | Easy |
-| EPG Full Grid | Medium-Hard |
-| Theme Settings UI | Easy |
-| Parental Controls UI | Medium |
-| Deep link handling | Easy-Medium |
-
-### Optional (P2)
-
-| What | Difficulty |
-|------|-----------|
-| Manage Categories | Easy |
-| Feedback form | Easy |
-| Catch-Up TV | Medium |
-| External subtitles | Medium |
-| Chromecast | Hard |
-
-### Not Needed (removed from scope)
-
-- ~~TV layouts~~ — mobile only
-- ~~QR Pairing~~ — TV only, removed
-- ~~VLC player~~ — not needed
-- ~~Cast player~~ — not needed for launch
-- ~~Firebase~~ — removed from iOS, NoOp analytics
+| Feature | Channel Player | Movie Player | Series Player |
+|---------|---------------|-------------|---------------|
+| Video playback | ✅ Android + iOS | ❌ Not built | ❌ Not built |
+| HLS streaming | ✅ | — | — |
+| URL normalization (output format) | ✅ | — | — |
+| PiP mode | ✅ Android | — | — |
+| Channel switching (prev/next) | ✅ | — | — |
+| Channel list sidebar | ✅ | — | — |
+| Category filter in sidebar | ✅ | — | — |
+| Search in sidebar | ✅ | — | — |
+| EPG overlay | ✅ | — | — |
+| Sleep timer | ✅ | — | — |
+| Aspect ratio toggle | ✅ | — | — |
+| Screen rotation | ✅ | — | — |
+| Auto-retry (3x) | ✅ | — | — |
+| Buffering indicator | ✅ | — | — |
+| Error dialog with retry | ✅ | — | — |
 
 ---
 
-## Project Statistics
+## 4. CI/CD Pipeline
 
-| Metric | Original | KMP |
-|--------|----------|-----|
-| Modules | 18 | 25 (shared + umbrella + androidApp) |
-| Platforms | Android only | Android + iOS |
-| LoC (approx) | ~50k | ~35k (shared) |
-| Room/SQLDelight Entities | 22 entities, 20 migrations | 13 tables (implicit migrations) |
-| DAOs / Query files | 7 DAOs | 13 .sq files, 200+ queries |
+### GitHub Actions (Primary)
+
+**Workflow:** `.github/workflows/ios-testflight.yml`  
+**Trigger:** Push to `master` or manual dispatch  
+**Runner:** `macos-15` (Xcode 16+, iOS 18 SDK)  
+
+Pipeline steps:
+1. Checkout → JDK 17 → Gradle cache
+2. Generate placeholder app icon
+3. Install distribution certificate (.p12) + provisioning profile
+4. Build KMP iOS framework (`shared:umbrella:linkReleaseFrameworkIosArm64`)
+5. Xcode archive → Export IPA
+6. Upload to TestFlight via `xcrun altool`
+
+**Build time:** ~20 min (first run), ~10 min (cached)
+
+### Codemagic (Backup)
+
+**Config:** `codemagic.yaml`  
+**Workflows:** iOS TestFlight + Android Debug APK
+
+---
+
+## 5. iOS-Specific Adaptations
+
+| Adaptation | Why |
+|-----------|-----|
+| `NSAppTransportSecurity` → AllowsArbitraryLoads | IPTV servers use HTTP |
+| `CADisableMinimumFrameDurationOnPhone` = true | Compose Multiplatform requires it for 120Hz |
+| iPad orientations in Info.plist | App Store upload requires all 4 orientations for iPad |
+| Umbrella module (`shared:umbrella`) | Single `shared` framework for Swift `import shared` |
+| `KoinIOS.kt` in umbrella module | Avoids circular deps (core:navigation ↔ features) |
+| QR Pairing removed | TV-only feature, not needed on mobile |
+| Firebase removed | Not needed for mobile, was causing linker errors |
+| CryptoManager stubbed | No encryption (same as Android KMP) |
+| QRCodeGenerator stubbed | TV-only, returns null |
+| PremiumStatusProvider = false | Billing not integrated on iOS yet |
+| AVPlayer `isMuted` for preview | Kotlin/Native property access differs from JVM |
+| URL forced to `.m3u8` on iOS | AVPlayer only supports HLS natively |
+
+---
+
+## 6. What's Still Needed
+
+### P0 — Must Have Before Publishing
+
+| Item | Type | Difficulty | Both Platforms |
+|------|------|-----------|----------------|
+| Movie Player | Feature | Medium | Android: ExoPlayer Activity, iOS: AVPlayerViewController |
+| Series Player | Feature | Medium | Android: ExoPlayer Activity, iOS: AVPlayerViewController |
+| App Icon | Asset | Design | Replace placeholder blue square |
+| Privacy Policy URL | Legal | Easy | Required by both stores |
+| Store Listing Graphics | Asset | Design | Feature graphic (Play Store), screenshots |
+
+### P1 — Should Have
+
+| Item | Type | Difficulty |
+|------|------|-----------|
+| Switch Account screen | Feature | Easy |
+| EPG Full Grid | Feature | Medium-Hard |
+| Theme Settings UI | Feature | Easy |
+| Parental Controls UI | Feature | Medium |
+| Deep link handling | Feature | Easy-Medium |
+| iOS background sync (BGTaskScheduler) | Platform | Medium |
+| iOS billing (StoreKit 2) | Platform | Medium |
+
+### P2 — Nice to Have
+
+| Item | Type | Difficulty |
+|------|------|-----------|
+| Manage Categories (reorder) | Feature | Easy |
+| Feedback form | Feature | Easy |
+| Catch-Up TV playback | Feature | Medium |
+| External subtitles (SRT/VTT) | Feature | Medium |
+| Chromecast | Platform | Hard |
+
+### Removed from Scope
+
+| Item | Reason |
+|------|--------|
+| TV layouts | Mobile only — no Android TV or Apple TV |
+| QR Pairing | TV-only feature |
+| VLC player engine | ExoPlayer/AVPlayer sufficient |
+| Cast player | Not needed for launch |
+| Firebase Analytics | Replaced with NoOp |
+
+---
+
+## 7. Project Statistics
+
+| Metric | Original (Android) | KMP (Android + iOS) |
+|--------|-------------------|---------------------|
+| Platforms | 1 (Android) | 2 (Android + iOS) |
+| Modules | 18 | 25 (+ umbrella + workflows) |
+| Shared code | 0% | ~90% |
+| Lines of code | ~50k | ~35k shared + ~2k platform |
+| Database tables | 22 (Room) | 13 (SQLDelight) |
+| SQL queries | ~100 (DAO methods) | 200+ (.sq files) |
 | Network DTOs | 18+ | 20+ |
-| Domain Models | 40+ | 40+ |
-
----
-
-## Quality Assessment
-
-The KMP project runs on both Android and iOS with shared Compose UI, ViewModels, data layer, and navigation. The iOS app is deployed to TestFlight via GitHub Actions CI/CD. All main screens are functional: login, 5 tabs, detail screens, category browsing, channel player with preview. The main gap is movie and series VOD playback — channel (live) playback works on both platforms.
+| Domain models | 40+ | 40+ |
+| Use cases | 8 | 8 |
+| Repositories | 6 | 6 |
+| CI/CD pipelines | 0 | 2 (GitHub Actions + Codemagic) |
+| TestFlight builds | 0 | ✅ Automated |
