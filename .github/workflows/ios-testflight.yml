@@ -25,6 +25,17 @@ jobs:
         with:
           cache-read-only: false
 
+      - name: Cache Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.konan
+            shared/umbrella/build/classes
+            shared/umbrella/build/bin
+          key: konan-${{ runner.os }}-${{ hashFiles('**/*.kt', '**/*.kts', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            konan-${{ runner.os }}-
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
