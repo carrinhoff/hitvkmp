@@ -91,4 +91,10 @@ private val iosPlatformModule = module {
     single { ThemeManager(preferencesHelper = get()) }
     // CryptoManager — no encryption on iOS (same as Android KMP)
     single { CryptoManager() }
+    // PremiumStatusProvider — always false for now
+    single<pt.hitv.core.data.manager.PremiumStatusProvider> {
+        object : pt.hitv.core.data.manager.PremiumStatusProvider {
+            override fun hasPremiumSubscription(): Boolean = false
+        }
+    }
 }
