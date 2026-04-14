@@ -147,49 +147,96 @@
 
 ---
 
-## What's Still Needed (Not Yet Migrated)
+## What's Done
 
 ### Screens / Features
 
-| Screen | Original Location | Priority |
-|--------|-------------------|----------|
-| ~~Movie Detail~~ | ~~`app/.../movies/detail/MovieInfoContent.kt`~~ | ✅ Done |
-| ~~Series Detail~~ | ~~`app/.../series/detail/SeriesInfoContent.kt`~~ | ✅ Done |
-| ~~Movie Category Detail~~ | ~~`app/.../navigation/screens/CategoryDetailRoutes.kt`~~ | ✅ Done |
-| ~~Series Category Detail~~ | ~~`app/.../navigation/screens/CategoryDetailRoutes.kt`~~ | ✅ Done |
-| EPG Full Grid | `epg/` module + `DetailRoutes.kt` | P1 |
-| Switch Account (full UI) | `feature/auth/.../switchaccount/` | P1 |
-| QR Pairing | `feature/auth/.../qr/` | P2 |
-| Theme Settings (full UI) | `feature/settings/.../theme/` | P1 |
-| Parental Control (full UI) | `feature/settings/.../parental/` | P1 |
-| Manage Categories | `feature/settings/.../categories/` | P2 |
-| Feedback/Suggestion | `feature/settings/.../feedback/` | P2 |
+| Screen | Status |
+|--------|--------|
+| Login (Xtream + M3U) | ✅ Done |
+| All 5 tabs (Channels, Movies, Series, Premium, More) | ✅ Done |
+| Movie Detail (poster, plot, cast, trailer, favorites) | ✅ Done |
+| Series Detail (seasons, episodes, progress, trailer) | ✅ Done |
+| Movie Category Detail (paged grid, search, sort) | ✅ Done |
+| Series Category Detail (paged grid, search, sort) | ✅ Done |
+| Channel Preview (inline ExoPlayer/AVPlayer) | ✅ Done |
+| Channel Player (full-screen, PiP, channel list, EPG, sleep timer) | ✅ Done |
+| YouTube Trailer | ✅ Done (opens system browser/app) |
+| Shimmer skeletons | ✅ Done |
+| See All navigation | ✅ Done |
 
-### Player Activities
+### Players
 
-| Player | Original Location | Priority |
-|--------|-------------------|----------|
-| Movie Player | `app/.../movies/player/MoviePlayerActivity.kt` | P0 |
-| Series Player | `app/.../series/player/SeriesPlayerActivity.kt` | P0 |
-| Live Channel Player | `app/.../player/NewCastPlayerActivity.kt` | P0 |
-| ~~YouTube Trailer Player~~ | ~~`app/.../player/YoutubePlayerActivity.kt`~~ | ✅ Done (opens YouTube via system browser/app) |
-| Cast Player | `app/.../player/NewCastPlayerActivity.kt` (Chromecast) | P2 |
+| Player | Android | iOS | Status |
+|--------|---------|-----|--------|
+| Channel Player | ✅ ExoPlayer Activity + PiP | ✅ AVPlayerViewController | Done |
+| Channel Preview | ✅ ExoPlayer inline | ✅ AVPlayer + UIKitView | Done |
+| Movie Player | ❌ Activity not created | ❌ Not implemented | **P0 — needed for Play Store** |
+| Series Player | ❌ Activity not created | ❌ Not implemented | **P0 — needed for Play Store** |
 
-### ~~TV Layouts~~ — NOT NEEDED
+### CI/CD
 
-> KMP migration targets mobile only (Android + iOS). All TV layouts (TvChannelsLayout, TvMoviesBrowser, TvSeriesBrowser, TV drawer nav, TV player controls) are **out of scope**.
+| Platform | Status |
+|----------|--------|
+| GitHub Actions (iOS TestFlight) | ✅ Working — auto builds on push to master |
+| Codemagic (backup) | ✅ Configured |
+| Android debug APK | ✅ Via GitHub Actions |
 
-### Platform Features
+### iOS-specific fixes applied
 
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Deep link handling | P1 | `DeepLinkTarget` sealed class in core:navigation |
-| PiP mode | P2 | Mobile only, in player Activities |
-| Chromecast auto-switch | P2 | CastPlayer integration |
-| External subtitles (SRT/VTT/ASS/TTML) | P1 | In player Activities |
-| Sleep timer | P2 | In player Activities |
-| Catch-Up TV playback | P1 | CatchUpUrlBuilder + EPG integration |
-| Parental control PIN enforcement | P1 | ParentalControlManager |
+- NSAppTransportSecurity (allow HTTP for IPTV servers)
+- CADisableMinimumFrameDurationOnPhone (Compose Multiplatform 120Hz)
+- iPad orientations for App Store upload
+- QR Pairing removed (TV-only, not needed)
+- Firebase removed (not needed on mobile)
+- CryptoManager stubbed (no encryption)
+- QRCodeGenerator stubbed
+- Umbrella framework module for single `shared` import
+- KoinIOS with all feature modules + screen registrations
+- Settings/ObservableSettings via NSUserDefaults
+- PremiumStatusProvider stub
+
+---
+
+## What's Still Needed
+
+### Must Have (P0 — before Play Store)
+
+| What | Difficulty |
+|------|-----------|
+| **Movie Player Activity** (Android) + AVPlayer (iOS) | Medium |
+| **Series Player Activity** (Android) + AVPlayer (iOS) | Medium |
+| **App Icon** (not placeholder) | Design needed |
+| **Privacy Policy URL** | Easy (just a webpage) |
+| **Feature Graphic** (1024x500 for Play Store) | Design needed |
+
+### Nice to Have (P1)
+
+| What | Difficulty |
+|------|-----------|
+| Switch Account screen | Easy |
+| EPG Full Grid | Medium-Hard |
+| Theme Settings UI | Easy |
+| Parental Controls UI | Medium |
+| Deep link handling | Easy-Medium |
+
+### Optional (P2)
+
+| What | Difficulty |
+|------|-----------|
+| Manage Categories | Easy |
+| Feedback form | Easy |
+| Catch-Up TV | Medium |
+| External subtitles | Medium |
+| Chromecast | Hard |
+
+### Not Needed (removed from scope)
+
+- ~~TV layouts~~ — mobile only
+- ~~QR Pairing~~ — TV only, removed
+- ~~VLC player~~ — not needed
+- ~~Cast player~~ — not needed for launch
+- ~~Firebase~~ — removed from iOS, NoOp analytics
 
 ---
 
@@ -197,10 +244,9 @@
 
 | Metric | Original | KMP |
 |--------|----------|-----|
-| Modules | 18 | 24 (shared + androidApp) |
-| LoC (approx) | ~50k | ~30k (shared) + growing |
-| Unit Tests | 1,065 | TBD |
-| Instrumented Tests | 229 | TBD |
+| Modules | 18 | 25 (shared + umbrella + androidApp) |
+| Platforms | Android only | Android + iOS |
+| LoC (approx) | ~50k | ~35k (shared) |
 | Room/SQLDelight Entities | 22 entities, 20 migrations | 13 tables (implicit migrations) |
 | DAOs / Query files | 7 DAOs | 13 .sq files, 200+ queries |
 | Network DTOs | 18+ | 20+ |
@@ -210,6 +256,4 @@
 
 ## Quality Assessment
 
-The KMP project is **well-architected** with clean separation, proper layering, convention plugins, and real implementations (not stubs) for all core Android functionality. The 5 main tabs are feature-complete with search, filtering, paging, favorites, recently viewed, continue watching, and category browsing. The data layer is production-ready.
-
-All detail screens are done (movie detail, series detail, movie category, series category) with cast, trailer, favorites, recently viewed, playback position, paged grids, search, sort, shimmer skeletons, and scroll position preservation. The main remaining work is **players and settings sub-screens**. TV layouts are out of scope (mobile-only target).
+The KMP project runs on both Android and iOS with shared Compose UI, ViewModels, data layer, and navigation. The iOS app is deployed to TestFlight via GitHub Actions CI/CD. All main screens are functional: login, 5 tabs, detail screens, category browsing, channel player with preview. The main gap is movie and series VOD playback — channel (live) playback works on both platforms.
