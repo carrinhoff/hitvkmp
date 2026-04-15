@@ -544,7 +544,7 @@ private fun ChannelListItem(
 }
 
 @Composable
-private fun SleepTimerDialog(
+fun SleepTimerDialog(
     isTimerActive: Boolean,
     remainingMs: Long,
     onDurationSelected: (Long) -> Unit,

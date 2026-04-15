@@ -406,37 +406,6 @@ fun SeriesPlayerScreen(
     }
 }
 
-// Missing import workaround
-@Composable
-private fun SleepTimerDialog(
-    isTimerActive: Boolean,
-    remainingMs: Long,
-    onDurationSelected: (Long) -> Unit,
-    onCancel: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val themeColors = getThemeColors()
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Sleep Timer", color = themeColors.textColor, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                if (isTimerActive) {
-                    Text("Timer active: ${SleepTimerManager.formatRemainingTime(remainingMs)}", color = themeColors.primaryColor, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-                SleepTimerManager.PRESET_DURATIONS.forEach { (durationMs, label) ->
-                    Text(label, color = themeColors.textColor, fontSize = 16.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { onDurationSelected(durationMs) }.padding(vertical = 10.dp))
-                }
-            }
-        },
-        confirmButton = { if (isTimerActive) { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Cancel Timer", color = themeColors.danger) } } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Close", color = themeColors.textColor.copy(alpha = 0.7f)) } },
-        containerColor = themeColors.backgroundSecondary
-    )
-}
-
 private fun formatTime(ms: Long): String {
     if (ms <= 0) return "0:00"
     val totalSeconds = ms / 1000
