@@ -14,9 +14,12 @@ import pt.hitv.feature.movies.detail.category.MovieCategoryDetailScreen
 import pt.hitv.feature.movies.list.MovieViewModel
 
 class MovieCategoryDetailVoyagerScreen(
-    private val args: MovieCategoryDetailArgs
+    private val categoryId: String,
+    private val categoryName: String
 ) : Screen {
-    override val key = "MovieCategoryDetail_${args.categoryId}"
+    constructor(args: MovieCategoryDetailArgs) : this(args.categoryId, args.categoryName)
+
+    override val key = "MovieCategoryDetail_$categoryId"
 
     @Composable
     override fun Content() {
@@ -25,8 +28,8 @@ class MovieCategoryDetailVoyagerScreen(
         val navigator = LocalNavigator.currentOrThrow
 
         MovieCategoryDetailScreen(
-            initialCategoryId = args.categoryId,
-            initialCategoryName = args.categoryName,
+            initialCategoryId = categoryId,
+            initialCategoryName = categoryName,
             viewModel = viewModel,
             analyticsHelper = analyticsHelper,
             onMovieClicked = { movie, position, clickType ->

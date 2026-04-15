@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.viewinterop.AndroidView
@@ -26,19 +29,20 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.designsystem.theme.AppThemeProvider
-import pt.hitv.feature.player.composables.MoviePlayerScreen
-import pt.hitv.feature.player.movies.MoviePlayerViewModel
+import pt.hitv.feature.player.composables.SeriesPlayerScreen
+import pt.hitv.feature.player.series.SeriesPlayerViewModel
 import pt.hitv.feature.player.util.SleepTimerManager
 
 @OptIn(UnstableApi::class)
-class MoviePlayerActivity : ComponentActivity() {
+class SeriesPlayerActivity : ComponentActivity() {
 
     private val preferencesHelper: PreferencesHelper by inject()
-    private val viewModel: MoviePlayerViewModel by inject()
+    private val viewModel: SeriesPlayerViewModel by inject()
     private var exoPlayer: ExoPlayer? = null
     private var playerView: PlayerView? = null
     private var resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -52,18 +56,18 @@ class MoviePlayerActivity : ComponentActivity() {
 
     private val args by lazy {
         object {
-            val movieUrl: String = intent.getStringExtra("url") ?: ""
-            val movieTitle: String = intent.getStringExtra("title") ?: ""
-            val streamId: Int = intent.getIntExtra("streamId", 0)
-            val startPositionMs: Long = intent.getLongExtra("startPositionMs", 0L)
+            val seriesId: String = intent.getStringExtra("seriesId") ?: ""
+            val seasonNumber: Int = intent.getIntExtra("seasonNumber", 0)
+            val episodeIndex: Int = intent.getIntExtra("episodeIndex", 0)
         }
     }
 
-    // Compose state
     private val isBuffering = mutableStateOf(true)
     private val isPlaying = mutableStateOf(false)
     private val currentPositionMs = mutableLongStateOf(0L)
     private val durationMs = mutableLongStateOf(0L)
+    private val currentEpisodeIndex = mutableIntStateOf(0)
+    private val episodeTitle = mutableStateOf("")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,18 +75,14 @@ class MoviePlayerActivity : ComponentActivity() {
         setFullScreen()
         createPlayer()
 
-        // Load saved position
+        currentEpisodeIndex.intValue = args.episodeIndex
+
+        // Load episodes then start playback
+        viewModel.loadEpisodes(args.seriesId, args.seasonNumber)
         lifecycleScope.launch {
-            if (args.streamId > 0) {
-                val saved = viewModel.getPlaybackPosition(args.streamId)
-                if (saved != null && saved > 0) {
-                    startPlayback(args.movieUrl, saved)
-                } else {
-                    startPlayback(args.movieUrl, args.startPositionMs)
-                }
-            } else {
-                startPlayback(args.movieUrl, args.startPositionMs)
-            }
+            // Wait for episodes to load
+            viewModel.uiState.first { !it.isLoading && it.episodes.isNotEmpty() }
+            playEpisode(args.episodeIndex)
         }
 
         // Periodic position update + save
@@ -99,23 +99,23 @@ class MoviePlayerActivity : ComponentActivity() {
         lifecycleScope.launch {
             while (true) {
                 delay(5000)
-                exoPlayer?.let { player ->
-                    val pos = player.currentPosition
-                    if (pos > 0 && args.streamId > 0) {
-                        viewModel.savePlaybackPosition(args.streamId, pos)
-                    }
-                }
+                saveCurrentPosition()
             }
         }
 
         setContent {
             AppThemeProvider {
-                MoviePlayerScreen(
-                    movieTitle = args.movieTitle,
+                val uiState by viewModel.uiState.collectAsState()
+                val episodes = uiState.episodes
+
+                SeriesPlayerScreen(
+                    episodeTitle = episodeTitle.value,
                     isBuffering = isBuffering.value,
                     isPlaying = isPlaying.value,
                     currentPositionMs = currentPositionMs.longValue,
                     durationMs = durationMs.longValue,
+                    hasNextEpisode = currentEpisodeIndex.intValue < episodes.size - 1,
+                    hasPreviousEpisode = currentEpisodeIndex.intValue > 0,
                     sleepTimerManager = sleepTimerManager,
                     playerViewFactory = { modifier ->
                         AndroidView(
@@ -123,7 +123,7 @@ class MoviePlayerActivity : ComponentActivity() {
                                 PlayerView(ctx).apply {
                                     playerView = this
                                     useController = false
-                                    this.resizeMode = this@MoviePlayerActivity.resizeMode
+                                    this.resizeMode = this@SeriesPlayerActivity.resizeMode
                                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                     keepScreenOn = true
@@ -137,6 +137,20 @@ class MoviePlayerActivity : ComponentActivity() {
                     onBack = { finish() },
                     onPlayPause = { exoPlayer?.let { it.playWhenReady = !it.isPlaying } },
                     onSeekTo = { exoPlayer?.seekTo(it) },
+                    onNextEpisode = {
+                        val nextIdx = currentEpisodeIndex.intValue + 1
+                        if (nextIdx < episodes.size) {
+                            saveCurrentPosition()
+                            playEpisode(nextIdx)
+                        }
+                    },
+                    onPreviousEpisode = {
+                        val prevIdx = currentEpisodeIndex.intValue - 1
+                        if (prevIdx >= 0) {
+                            saveCurrentPosition()
+                            playEpisode(prevIdx)
+                        }
+                    },
                     onAspectRatioToggle = { toggleAspectRatio() },
                     onSleepTimerSelect = { sleepTimerManager.start(it) },
                     onSleepTimerCancel = { sleepTimerManager.cancel() }
@@ -149,6 +163,47 @@ class MoviePlayerActivity : ComponentActivity() {
         })
     }
 
+    private fun playEpisode(index: Int) {
+        val episodes = viewModel.uiState.value.episodes
+        if (index !in episodes.indices) return
+
+        val episode = episodes[index]
+        currentEpisodeIndex.intValue = index
+        episodeTitle.value = "${episode.episodeNum}. ${episode.title ?: "Episode ${episode.episodeNum}"}"
+
+        val host = preferencesHelper.getHostUrl()
+        val user = preferencesHelper.getUsername()
+        val pass = preferencesHelper.getPassword()
+        val url = "${host}series/$user/$pass/${episode.id}.${episode.containerExtension ?: "m3u8"}"
+
+        // Get saved position for this episode
+        val savedPosition = episode.info?.playbackPosition ?: 0L
+
+        val normalizedUrl = normalizeUrl(url)
+        val mediaSource = createMediaSource(normalizedUrl)
+        exoPlayer?.apply {
+            stop()
+            setMediaSource(mediaSource)
+            prepare()
+            if (savedPosition > 0) seekTo(savedPosition)
+            playWhenReady = true
+        }
+        isBuffering.value = true
+    }
+
+    private fun saveCurrentPosition() {
+        val episodes = viewModel.uiState.value.episodes
+        val idx = currentEpisodeIndex.intValue
+        if (idx !in episodes.indices) return
+        val episode = episodes[idx]
+        val pos = exoPlayer?.currentPosition ?: 0L
+        val dur = exoPlayer?.duration ?: 0L
+        if (pos > 0 && episode.id.isNotEmpty()) {
+            viewModel.savePlaybackPosition(pos, episode.id)
+            if (dur > 0) viewModel.saveEpisodeDuration(dur.toDouble(), episode.id)
+        }
+    }
+
     private fun createPlayer() {
         exoPlayer = ExoPlayer.Builder(this).build().apply {
             addListener(object : Player.Listener {
@@ -159,17 +214,6 @@ class MoviePlayerActivity : ComponentActivity() {
                     isBuffering.value = false
                 }
             })
-        }
-    }
-
-    private fun startPlayback(url: String, startPositionMs: Long) {
-        val normalizedUrl = normalizeUrl(url)
-        val mediaSource = createMediaSource(normalizedUrl)
-        exoPlayer?.apply {
-            setMediaSource(mediaSource)
-            prepare()
-            if (startPositionMs > 0) seekTo(startPositionMs)
-            playWhenReady = true
         }
     }
 
@@ -209,13 +253,7 @@ class MoviePlayerActivity : ComponentActivity() {
     }
 
     override fun onResume() { super.onResume(); setFullScreen() }
-    override fun onPause() {
-        exoPlayer?.let { player ->
-            val pos = player.currentPosition
-            if (pos > 0 && args.streamId > 0) viewModel.savePlaybackPosition(args.streamId, pos)
-        }
-        super.onPause()
-    }
+    override fun onPause() { saveCurrentPosition(); super.onPause() }
     override fun onStop() { exoPlayer?.pause(); super.onStop() }
     override fun onDestroy() { sleepTimerManager.cancel(); exoPlayer?.release(); exoPlayer = null; super.onDestroy() }
 }

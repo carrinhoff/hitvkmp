@@ -48,6 +48,12 @@
             android:exported="false"
             android:theme="@style/Theme.Hitv" />
 
+        <activity
+            android:name=".player.SeriesPlayerActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden"
+            android:exported="false"
+            android:theme="@style/Theme.Hitv" />
+
     </application>
 
 </manifest>

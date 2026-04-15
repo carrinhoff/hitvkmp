@@ -14,9 +14,12 @@ import pt.hitv.feature.series.detail.category.SeriesCategoryDetailScreen
 import pt.hitv.feature.series.list.SeriesViewModel
 
 class SeriesCategoryDetailVoyagerScreen(
-    private val args: SeriesCategoryDetailArgs
+    private val categoryId: String,
+    private val categoryName: String
 ) : Screen {
-    override val key = "SeriesCategoryDetail_${args.categoryId}"
+    constructor(args: SeriesCategoryDetailArgs) : this(args.categoryId, args.categoryName)
+
+    override val key = "SeriesCategoryDetail_$categoryId"
 
     @Composable
     override fun Content() {
@@ -25,8 +28,8 @@ class SeriesCategoryDetailVoyagerScreen(
         val navigator = LocalNavigator.currentOrThrow
 
         SeriesCategoryDetailScreen(
-            initialCategoryId = args.categoryId,
-            initialCategoryName = args.categoryName,
+            initialCategoryId = categoryId,
+            initialCategoryName = categoryName,
             viewModel = viewModel,
             analyticsHelper = analyticsHelper,
             onSeriesClicked = { tvShow, position, clickType ->

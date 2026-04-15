@@ -13,9 +13,11 @@ import pt.hitv.feature.movies.detail.MovieInfoViewModel
 import pt.hitv.feature.player.platform.launchMoviePlayer
 
 class MovieDetailVoyagerScreen(
-    private val args: MovieDetailArgs
+    private val streamId: String?
 ) : Screen {
-    override val key = "MovieDetail_${args.streamId}"
+    constructor(args: MovieDetailArgs) : this(args.streamId)
+
+    override val key = "MovieDetail_$streamId"
 
     @Composable
     override fun Content() {
@@ -25,7 +27,7 @@ class MovieDetailVoyagerScreen(
         val uriHandler = LocalUriHandler.current
 
         MovieInfoContent(
-            streamId = args.streamId,
+            streamId = streamId,
             viewModel = viewModel,
             preferencesHelper = preferencesHelper,
             onNavigateBack = { navigator.pop() },

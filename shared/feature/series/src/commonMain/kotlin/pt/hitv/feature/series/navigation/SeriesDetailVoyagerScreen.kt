@@ -15,9 +15,11 @@ import pt.hitv.feature.series.list.SeriesViewModel
 import pt.hitv.feature.player.platform.launchChannelPlayer
 
 class SeriesDetailVoyagerScreen(
-    private val args: SeriesDetailArgs
+    private val seriesId: String
 ) : Screen {
-    override val key = "SeriesDetail_${args.seriesId}"
+    constructor(args: SeriesDetailArgs) : this(args.seriesId)
+
+    override val key = "SeriesDetail_$seriesId"
 
     @Composable
     override fun Content() {
@@ -29,7 +31,7 @@ class SeriesDetailVoyagerScreen(
         val uriHandler = LocalUriHandler.current
 
         SeriesInfoContent(
-            seriesId = args.seriesId,
+            seriesId = seriesId,
             seriesInfoViewModel = seriesInfoViewModel,
             seriesViewModel = seriesViewModel,
             preferencesHelper = preferencesHelper,
