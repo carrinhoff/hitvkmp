@@ -7,6 +7,7 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":shared:core:data"))
             implementation(project(":shared:core:ui"))
+            implementation(project(":shared:feature:player"))
             implementation(libs.findLibrary("paging-compose").get())
             implementation(libs.findLibrary("coil-compose").get())
         }

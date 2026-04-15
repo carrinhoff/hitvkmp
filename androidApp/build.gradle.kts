@@ -33,6 +33,8 @@ dependencies {
     implementation(libs.findLibrary("androidx-core-ktx").get())
     implementation(libs.findLibrary("androidx-appcompat").get())
     implementation(libs.findLibrary("androidx-activity-compose").get())
+    implementation(libs.findLibrary("androidx-compose-material3").get())
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.findLibrary("androidx-core-splashscreen").get())
     implementation(libs.findLibrary("androidx-lifecycle-process").get())
 

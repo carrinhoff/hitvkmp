@@ -12,6 +12,7 @@ import pt.hitv.core.navigation.SeriesDetailArgs
 import pt.hitv.feature.series.detail.SeriesInfoContent
 import pt.hitv.feature.series.detail.SeriesInfoViewModel
 import pt.hitv.feature.series.list.SeriesViewModel
+import pt.hitv.feature.player.platform.launchChannelPlayer
 
 class SeriesDetailVoyagerScreen(
     private val args: SeriesDetailArgs
@@ -35,7 +36,19 @@ class SeriesDetailVoyagerScreen(
             analyticsHelper = analyticsHelper,
             onNavigateBack = { navigator.pop() },
             onPlayEpisode = { seasonNumber, episodeIndex ->
-                // TODO: Wire to series player when implemented
+                // Build episode URL and launch player
+                val seriesUiState = seriesViewModel.uiState.value
+                val (_, seasonsMap) = seriesUiState.seasonEpisodeData
+                val season = seasonsMap.keys.find { it.seasonNumber == seasonNumber }
+                val episodes = if (season != null) seasonsMap[season] ?: emptyList() else emptyList()
+                val episode = episodes.getOrNull(episodeIndex)
+                if (episode != null) {
+                    val host = preferencesHelper.getHostUrl()
+                    val user = preferencesHelper.getUsername()
+                    val pass = preferencesHelper.getPassword()
+                    val url = "${host}series/$user/$pass/${episode.id}.${episode.containerExtension ?: "m3u8"}"
+                    launchChannelPlayer(url = url, name = episode.title ?: "Episode ${episode.episodeNum}")
+                }
             },
             onPlayTrailer = { youtubeUrl ->
                 try {

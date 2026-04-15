@@ -10,6 +10,7 @@ import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.navigation.MovieDetailArgs
 import pt.hitv.feature.movies.detail.MovieInfoContent
 import pt.hitv.feature.movies.detail.MovieInfoViewModel
+import pt.hitv.feature.player.platform.launchMoviePlayer
 
 class MovieDetailVoyagerScreen(
     private val args: MovieDetailArgs
@@ -29,7 +30,7 @@ class MovieDetailVoyagerScreen(
             preferencesHelper = preferencesHelper,
             onNavigateBack = { navigator.pop() },
             onPlayMovie = { movieUrl, movieTitle ->
-                // TODO: Wire to movie player when implemented
+                launchMoviePlayer(movieUrl, movieTitle)
             },
             onPlayTrailer = { youtubeUrl ->
                 try {
