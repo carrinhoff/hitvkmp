@@ -88,10 +88,6 @@ fun AdaptiveScaffold(
             return@AppThemeProvider
         }
 
-        // Brief loading screen to prevent blank flash after login
-        var isReady by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { isReady = true }
-
         // === Sync state observation ===
         val syncStateManager: SyncStateManager = koinInject()
         val syncManager: SyncManager = koinInject()
@@ -102,36 +98,40 @@ fun AdaptiveScaffold(
         val stageName by syncStateManager.stageName.collectAsState()
         val stageMessage by syncStateManager.stageMessage.collectAsState()
 
-        // Track sync completion to force-recreate tab content (ViewModels re-init with fresh DB data)
+        // Track sync completion to force-recreate tab content
         var syncVersion by remember { mutableStateOf(0) }
 
-        // Trigger sync only on first login (not every app restart)
-        LaunchedEffect(isLoggedIn) {
-            if (isLoggedIn) {
-                val userId = preferencesHelper.getUserId()
-                val initialSyncDone = preferencesHelper.getStoredBoolean("initial_sync_complete")
+        // Check if initial sync is needed — set state IMMEDIATELY to prevent blank flash
+        val userId = remember { preferencesHelper.getUserId() }
+        val initialSyncDone = remember { preferencesHelper.getStoredBoolean("initial_sync_complete") }
+        val needsSync = userId != -1 && !initialSyncDone
 
-                if (userId != -1 && !initialSyncDone) {
-                    syncStateManager.startDataSync()
-                    launch {
-                        try {
-                            (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
-                                syncStateManager.updateProgress(p, s, m)
-                            }
-                            preferencesHelper.setStoredBoolean("initial_sync_complete", true)
-                            syncStateManager.onSyncComplete()
-                            syncVersion++
+        // Start sync immediately if needed (prevents blank flash — sync overlay shows on first frame)
+        if (needsSync && syncState == SyncState.IDLE) {
+            syncStateManager.startDataSync()
+        }
 
-                            // Start EPG sync in background (non-blocking, no UI overlay)
-                            launch {
-                                try {
-                                    syncManager.syncEpg(userId)
-                                } catch (_: Exception) { }
-                            }
-                        } catch (e: Exception) {
-                            syncStateManager.onSyncFailed(e.message)
-                        }
+        // Perform the actual sync work
+        LaunchedEffect(needsSync) {
+            if (needsSync) {
+                try {
+                    (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
+                        syncStateManager.updateProgress(p, s, m)
                     }
+                    preferencesHelper.setStoredBoolean("initial_sync_complete", true)
+                    syncStateManager.onSyncComplete()
+                    syncVersion++
+
+                    // EPG sync with progress UI
+                    syncStateManager.startEpgSync()
+                    try {
+                        syncManager.syncEpg(userId)
+                        syncStateManager.onEpgSyncComplete()
+                    } catch (_: Exception) {
+                        syncStateManager.onEpgSyncComplete()
+                    }
+                } catch (e: Exception) {
+                    syncStateManager.onSyncFailed(e.message)
                 }
             }
         }
