@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package pt.hitv.feature.player.platform
 
 import platform.AVFAudio.AVAudioSession
