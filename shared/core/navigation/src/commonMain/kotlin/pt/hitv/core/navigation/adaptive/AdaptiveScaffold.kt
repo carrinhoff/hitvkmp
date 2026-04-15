@@ -88,6 +88,10 @@ fun AdaptiveScaffold(
             return@AppThemeProvider
         }
 
+        // Brief loading screen to prevent blank flash after login
+        var isReady by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { isReady = true }
+
         // === Sync state observation ===
         val syncStateManager: SyncStateManager = koinInject()
         val syncManager: SyncManager = koinInject()

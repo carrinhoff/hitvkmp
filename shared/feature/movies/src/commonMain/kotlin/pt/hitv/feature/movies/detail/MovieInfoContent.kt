@@ -222,7 +222,7 @@ fun MovieInfoContent(
     // Render UI
     Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         when {
-            isLoading -> LoadingScreen()
+            isLoading || (!isContentVisible && movieInfo != null && !hasError) -> LoadingScreen()
             hasError -> ErrorScreen(onBackClick = onNavigateBack)
             movieInfo != null && movieData != null && isValidMovieInfo(movieInfo) -> {
                 AnimatedVisibility(

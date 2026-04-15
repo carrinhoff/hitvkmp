@@ -19,6 +19,10 @@ class SyncStateManager {
     private val _syncState = MutableStateFlow(SyncState.IDLE)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
+    /** Increments when sync completes. ViewModels observe this to refresh data. */
+    private val _syncVersion = MutableStateFlow(0)
+    val syncVersion: StateFlow<Int> = _syncVersion.asStateFlow()
+
     private val _progress = MutableStateFlow(0)
     val progress: StateFlow<Int> = _progress.asStateFlow()
 
@@ -55,6 +59,7 @@ class SyncStateManager {
     fun onSyncComplete() {
         _progress.value = 100
         _syncState.value = SyncState.IDLE
+        _syncVersion.value++
     }
 
     /**

@@ -41,9 +41,12 @@ fun LiveChannelsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val themeColors = getThemeColors()
 
-    // Log screen view
+    // Log screen view + refresh data (handles post-sync reload)
     LaunchedEffect(Unit) {
         analyticsHelper.logScreenView(ScreenName.LIVE_CHANNELS, "LiveChannelsScreen")
+        viewModel.getFavorites()
+        viewModel.fetchRecentlyViewedChannels()
+        viewModel.fetchCategoryCounts()
     }
 
     MobileChannelsLayout(

@@ -91,8 +91,10 @@ fun SeriesScreen(
     // Track scroll-to-category request from bottom sheet
     var scrollToCategoryId by remember { mutableStateOf<String?>(null) }
 
-    // Fetch initial data
+    // Fetch initial data (also re-fetches after sync via screen recreation)
     LaunchedEffect(Unit) {
+        viewModel.getFavorites()
+        viewModel.fetchRecentlyViewedTvShows()
         viewModel.fetchLastAddedTvShows()
         viewModel.fetchContinueWatchingSeries()
     }

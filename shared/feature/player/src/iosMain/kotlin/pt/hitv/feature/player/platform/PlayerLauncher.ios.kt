@@ -1,12 +1,25 @@
 package pt.hitv.feature.player.platform
 
+import platform.AVFAudio.AVAudioSession
+import platform.AVFAudio.AVAudioSessionCategoryPlayback
+import platform.AVFAudio.setActive
 import platform.AVFoundation.AVPlayer
-import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.play
 import platform.AVKit.AVPlayerViewController
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
-import platform.UIKit.UIWindow
+
+/**
+ * Configures AVAudioSession for playback.
+ * Required for sound output on iOS — without this, AVPlayer is silent.
+ */
+private fun configureAudioSession() {
+    try {
+        val session = AVAudioSession.sharedInstance()
+        session.setCategory(AVAudioSessionCategoryPlayback, null)
+        session.setActive(true, null)
+    } catch (_: Exception) {}
+}
 
 /**
  * iOS player launcher — presents AVPlayerViewController modally.
@@ -22,6 +35,7 @@ actual fun launchChannelPlayer(
     categoryTitle: String?,
     categoryId: Int
 ) {
+    configureAudioSession()
     val hlsUrl = normalizeUrlForIos(url)
     presentAVPlayer(hlsUrl)
 }
@@ -32,6 +46,7 @@ actual fun launchMoviePlayer(
     streamId: Int,
     startPositionMs: Long
 ) {
+    configureAudioSession()
     val hlsUrl = normalizeUrlForIos(movieUrl)
     presentAVPlayer(hlsUrl)
 }
