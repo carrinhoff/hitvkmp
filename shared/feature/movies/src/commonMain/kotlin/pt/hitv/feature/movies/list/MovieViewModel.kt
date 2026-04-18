@@ -21,6 +21,7 @@ import pt.hitv.core.data.paging.MOVIE_FILTER_ALL
 import pt.hitv.core.data.paging.SORT_ADDED
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.data.manager.UserSessionManager
+import pt.hitv.core.sync.SyncStateManager
 
 /**
  * UI State for Movie screen following NiA unidirectional data flow pattern.
@@ -70,7 +71,8 @@ class MovieViewModel(
     private val preferencesHelper: PreferencesHelper,
     private val getMoviesPagerUseCase: GetMoviesPagerUseCase,
     private val searchMoviesUseCase: SearchMoviesUseCase,
-    private val toggleFavoriteMovieUseCase: ToggleFavoriteMovieUseCase
+    private val toggleFavoriteMovieUseCase: ToggleFavoriteMovieUseCase,
+    private val syncStateManager: SyncStateManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MovieUiState())
@@ -130,6 +132,28 @@ class MovieViewModel(
                 }
             }
         }
+        // Re-pull data whenever the global sync completes.
+        viewModelScope.launch {
+            syncStateManager.syncVersion.drop(1).collect { refreshAfterSync() }
+        }
+    }
+
+    fun refreshAfterSync() {
+        val uid = userIdFlow.value
+        if (uid == -1) return
+        clearCategoryCache()
+        categoryMoviesCache.clear()
+        _uiState.update {
+            it.copy(
+                categoryMoviesMap = emptyMap(),
+                searchMatchedCategories = emptyList(),
+                searchResultMovies = emptyMap()
+            )
+        }
+        fetchLocalCategories()
+        getFavorites()
+        fetchRecentlyViewedMovies()
+        viewModelScope.launch { _refreshPagingEvent.emit(Unit) }
     }
 
     private fun loadDefaultCategory() {

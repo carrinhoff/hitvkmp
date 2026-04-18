@@ -1,13 +1,19 @@
 package pt.hitv.core.common.di
 
 import org.koin.dsl.module
+import pt.hitv.core.common.AppInfoProvider
+import pt.hitv.core.common.LocaleController
 import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.core.common.UrlOpener
 import pt.hitv.core.common.datastore.HitvPreferencesDataStore
 
 /**
  * Koin module providing common utilities available on all platforms:
  * - PreferencesHelper (wraps Settings + encrypted settings)
  * - HitvPreferencesDataStore (reactive preferences via FlowSettings)
+ * - UrlOpener / AppInfoProvider / LocaleController (expect/actual primitives
+ *   whose actual classes take no constructor args — Android uses
+ *   AndroidContextHolder, iOS uses NSBundle / NSUserDefaults directly).
  *
  * Platform modules must provide:
  * - Settings (multiplatform-settings)
@@ -16,4 +22,7 @@ import pt.hitv.core.common.datastore.HitvPreferencesDataStore
 val commonModule = module {
     single { PreferencesHelper(settings = get()) }
     single { HitvPreferencesDataStore(observableSettings = get()) }
+    single { UrlOpener() }
+    single { AppInfoProvider() }
+    single { LocaleController() }
 }

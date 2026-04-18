@@ -100,7 +100,9 @@ class StreamRepositoryImpl(
                             lastUpdated = now,
                             lastSeen = now,
                             contentHash = null,
-                            syncVersion = 1L
+                            syncVersion = 1L,
+                            tvArchive = liveStream.tvArchive.toLong(),
+                            tvArchiveDuration = liveStream.tvArchiveDuration.toLong()
                         )
                     }
                 }
@@ -254,7 +256,9 @@ class StreamRepositoryImpl(
                         lastUpdated = now,
                         lastSeen = now,
                         contentHash = null,
-                        syncVersion = 1L
+                        syncVersion = 1L,
+                        tvArchive = channel.tvArchive.toLong(),
+                        tvArchiveDuration = channel.tvArchiveDuration.toLong()
                     )
                 }
             }
@@ -334,6 +338,16 @@ class StreamRepositoryImpl(
         }
     }
 
+    override suspend fun getCatchUpChannelCount(): Int {
+        return withContext(Dispatchers.IO) {
+            try {
+                channelQueries.countCatchUpByUserId(userId.toLong()).executeAsOne().toInt()
+            } catch (e: Exception) {
+                0
+            }
+        }
+    }
+
     override suspend fun getStreamsWithM3u(username: String, password: String, type: String, output: String): Resources<String> {
         return streamRemoteDataSource.getStreamsWithM3u(username, password, type, output)
     }
@@ -395,18 +409,25 @@ class StreamRepositoryImpl(
                 is Resources.Loading -> Resources.Loading()
             }
         } else {
-            return when (val result = streamRemoteDataSource.fetchEPG()) {
-                is Resources.Success -> {
-                    val xmlContent = result.data
-                    if (xmlContent.isBlank()) {
-                        return Resources.Error("Empty EPG response from server.")
-                    }
-                    val epgData = EpgParser.parse(xmlContent)
-                    insertEpgDB(epgData, onChannelProgress, onProgrammeProgress)
-                    Resources.Success(epgData)
-                }
-                is Resources.Error -> Resources.Error(result.message)
-                is Resources.Loading -> Resources.Loading()
+            // Xtream EPG endpoint: use the platform-native streaming loader —
+            // Android goes through HttpURLConnection + XmlPullParser so the
+            // ~80 MB XMLTV feed never lives fully in memory. Ktor's HttpSend
+            // save() previously OOMed here.
+            return try {
+                val baseUrl = preferencesHelper.getHostUrl()
+                    .trimEnd('/') + "/"
+                val username = preferencesHelper.getUsername()
+                val password = preferencesHelper.getPassword()
+                val epgData = pt.hitv.epg.EpgStreamingLoader.fetchAndParse(
+                    baseUrl = baseUrl,
+                    username = username,
+                    password = password,
+                    onProgress = { _, _ -> },
+                )
+                insertEpgDB(epgData, onChannelProgress, onProgrammeProgress)
+                Resources.Success(epgData)
+            } catch (e: Exception) {
+                Resources.Error("EPG fetch failed: ${e.message}")
             }
         }
     }
@@ -594,6 +615,12 @@ private class ChannelPagingSource(
 
                 categoryId == CHANNEL_FILTER_RECENTLY_VIEWED -> {
                     channelQueries.selectRecentlyViewedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
+                        .executeAsList()
+                        .map { it.toChannel() }
+                }
+
+                categoryId == CHANNEL_FILTER_CATCH_UP -> {
+                    channelQueries.selectCatchUpPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
                         .executeAsList()
                         .map { it.toChannel() }
                 }

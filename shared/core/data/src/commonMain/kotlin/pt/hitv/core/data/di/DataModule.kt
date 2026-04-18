@@ -8,6 +8,7 @@ import pt.hitv.core.data.parser.M3uParser
 import pt.hitv.core.data.repository.AccountManagerRepositoryImpl
 import pt.hitv.core.data.repository.CategoryPreferenceRepositoryImpl
 import pt.hitv.core.data.repository.CustomGroupRepositoryImpl
+import pt.hitv.core.data.repository.SearchHistoryRepositoryImpl
 import pt.hitv.core.data.repository.MovieRepositoryImpl
 import pt.hitv.core.data.repository.ParentalControlRepositoryImpl
 import pt.hitv.core.data.repository.StreamRepositoryImpl
@@ -24,6 +25,7 @@ import pt.hitv.core.domain.usecases.ToggleFavoriteMovieUseCase
 import pt.hitv.core.domain.usecases.ToggleFavoriteSeriesUseCase
 import pt.hitv.core.domain.repositories.CategoryPreferenceRepository
 import pt.hitv.core.domain.repositories.CustomGroupRepository
+import pt.hitv.core.domain.repositories.SearchHistoryRepository
 import pt.hitv.core.domain.repositories.MovieRepository
 import pt.hitv.core.domain.repositories.ParentalControlRepository
 import pt.hitv.core.domain.repositories.StreamRepository
@@ -136,6 +138,10 @@ val dataModule: Module = module {
             customGroupQueries = get(),
             channelQueries = get()
         )
+    }
+
+    single<SearchHistoryRepository> {
+        SearchHistoryRepositoryImpl(database = get())
     }
 
     single<ParentalControlRepository> {

@@ -41,8 +41,9 @@ import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.designsystem.theme.AppThemeProvider
+import pt.hitv.feature.player.LivePlaybackState
 import pt.hitv.feature.player.LivePlayerViewModel
-import pt.hitv.feature.player.PlaybackState
+import pt.hitv.feature.player.toResizeMode
 import pt.hitv.feature.player.composables.ChannelPlayerScreen
 import pt.hitv.feature.player.helpers.ChannelNavigationHelper
 import pt.hitv.feature.player.util.SleepTimerManager
@@ -191,7 +192,7 @@ class ChannelPlayerActivity : ComponentActivity() {
         return PlayerView(context).apply {
             playerView = this
             useController = false
-            resizeMode = viewModel.uiState.value.currentResizeMode
+            resizeMode = viewModel.uiState.value.currentAspectMode.toResizeMode()
             setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -277,14 +278,9 @@ class ChannelPlayerActivity : ComponentActivity() {
     private fun observeResizeMode() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.map { it.currentResizeMode }.distinctUntilChanged()
+                viewModel.uiState.map { it.currentAspectMode }.distinctUntilChanged()
                     .collect { mode ->
-                        playerView?.resizeMode = when (mode) {
-                            0 -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            3 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                            4 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        }
+                        playerView?.resizeMode = mode.toResizeMode()
                     }
             }
         }

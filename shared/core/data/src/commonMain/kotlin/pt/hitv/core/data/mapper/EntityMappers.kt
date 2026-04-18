@@ -35,7 +35,9 @@ fun DbChannel.toChannel() = Channel(
     categoryId = categoryCreatorId,
     isFavorite = isFavorite != 0L,
     lastViewedTimestamp = lastViewedTimestamp,
-    id = channelId.toString()
+    id = channelId.toString(),
+    tvArchive = tvArchive.toInt(),
+    tvArchiveDuration = tvArchiveDuration.toInt()
 )
 
 fun ChannelSelectRecentlyViewed.toChannel() = Channel(
@@ -46,7 +48,9 @@ fun ChannelSelectRecentlyViewed.toChannel() = Channel(
     categoryId = categoryCreatorId,
     isFavorite = isFavorite != 0L,
     lastViewedTimestamp = lastViewedTimestamp,
-    id = channelId.toString()
+    id = channelId.toString(),
+    tvArchive = tvArchive.toInt(),
+    tvArchiveDuration = tvArchiveDuration.toInt()
 )
 
 fun ChannelSelectRecentlyViewedPaged.toChannel() = Channel(
@@ -57,7 +61,9 @@ fun ChannelSelectRecentlyViewedPaged.toChannel() = Channel(
     categoryId = categoryCreatorId,
     isFavorite = isFavorite != 0L,
     lastViewedTimestamp = lastViewedTimestamp,
-    id = channelId.toString()
+    id = channelId.toString(),
+    tvArchive = tvArchive.toInt(),
+    tvArchiveDuration = tvArchiveDuration.toInt()
 )
 
 // ==================== Movie Mappers ====================

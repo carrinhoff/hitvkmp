@@ -28,16 +28,14 @@ class SeriesInfoViewModel(
     val seriesInfo: StateFlow<SeriesInfo?> = _seriesInfo.asStateFlow()
 
     private var favoriteJob: Job? = null
-    private var infoJob: Job? = null
 
     /**
-     * Fetches series info: first from cache, then from network.
-     * Updates _seriesInfo StateFlow so the UI reacts.
+     * Fetches series info: first from cache, then from network with DB insert.
+     * Suspending so the caller can sequence follow-up queries (episodes) that depend
+     * on the network-inserted rows being present in the DB.
      */
-    fun loadSeriesInfo(seriesId: String) {
-        infoJob?.cancel()
-        infoJob = viewModelScope.launch {
-            // 1) Try cache first
+    suspend fun loadSeriesInfo(seriesId: String) {
+        try {
             repository.fetchSeriesInfo(seriesId)
                 .catch { /* ignore cache errors */ }
                 .collect { cached ->
@@ -45,43 +43,37 @@ class SeriesInfoViewModel(
                         _seriesInfo.value = cached
                     }
                 }
-        }
 
-        // 2) Fetch from network (inserts into DB, then re-read)
-        viewModelScope.launch {
-            try {
-                val startTime = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-                val result = repository.getSeriesInfo(seriesId)
-                val loadTime = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - startTime
+            val startTime = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+            val result = repository.getSeriesInfo(seriesId)
+            val loadTime = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - startTime
 
-                when (result) {
-                    is Resources.Success -> {
-                        analyticsHelper.logContentDetailLoaded(
-                            contentType = ContentType.TV_SHOW,
-                            contentId = seriesId,
-                            loadTimeMs = loadTime,
-                            dataSource = "network"
-                        )
-                        // Re-read from DB after network insert
-                        repository.fetchSeriesInfo(seriesId)
-                            .catch { /* ignore */ }
-                            .collect { fresh ->
-                                if (fresh != null) {
-                                    _seriesInfo.value = fresh
-                                }
+            when (result) {
+                is Resources.Success -> {
+                    analyticsHelper.logContentDetailLoaded(
+                        contentType = ContentType.TV_SHOW,
+                        contentId = seriesId,
+                        loadTimeMs = loadTime,
+                        dataSource = "network"
+                    )
+                    repository.fetchSeriesInfo(seriesId)
+                        .catch { /* ignore */ }
+                        .collect { fresh ->
+                            if (fresh != null) {
+                                _seriesInfo.value = fresh
                             }
-                    }
-                    is Resources.Error -> {
-                        analyticsHelper.logContentDetailLoadFailed(
-                            contentType = ContentType.TV_SHOW,
-                            contentId = seriesId,
-                            failureReason = result.message ?: "Unknown error"
-                        )
-                    }
-                    else -> {}
+                        }
                 }
-            } catch (_: Exception) {}
-        }
+                is Resources.Error -> {
+                    analyticsHelper.logContentDetailLoadFailed(
+                        contentType = ContentType.TV_SHOW,
+                        contentId = seriesId,
+                        failureReason = result.message ?: "Unknown error"
+                    )
+                }
+                else -> {}
+            }
+        } catch (_: Exception) {}
     }
 
     fun checkFavoriteStatus(seriesId: Int) {

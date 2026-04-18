@@ -94,15 +94,15 @@ class LivePlayerViewModel(
         }
     }
 
-    fun setPlaybackBuffering() { _uiState.update { it.copy(playbackState = PlaybackState.Buffering) } }
-    fun setPlaybackReady() { _uiState.update { it.copy(playbackState = PlaybackState.Playing) } }
-    fun setPlaybackError(message: String, retryCount: Int, maxRetries: Int) { _uiState.update { it.copy(playbackState = PlaybackState.Error(message = message, isRetrying = false, retryCount = retryCount, maxRetries = maxRetries), showErrorDialog = true, errorMessage = message) } }
-    fun setAutoRetrying(retryCount: Int, maxRetries: Int) { _uiState.update { it.copy(playbackState = PlaybackState.Error(message = "Stream error - retrying ($retryCount/$maxRetries)...", isRetrying = true, retryCount = retryCount, maxRetries = maxRetries)) } }
+    fun setPlaybackBuffering() { _uiState.update { it.copy(playbackState = LivePlaybackState.Buffering) } }
+    fun setPlaybackReady() { _uiState.update { it.copy(playbackState = LivePlaybackState.Playing) } }
+    fun setPlaybackError(message: String, retryCount: Int, maxRetries: Int) { _uiState.update { it.copy(playbackState = LivePlaybackState.Error(message = message, isRetrying = false, retryCount = retryCount, maxRetries = maxRetries), showErrorDialog = true, errorMessage = message) } }
+    fun setAutoRetrying(retryCount: Int, maxRetries: Int) { _uiState.update { it.copy(playbackState = LivePlaybackState.Error(message = "Stream error - retrying ($retryCount/$maxRetries)...", isRetrying = true, retryCount = retryCount, maxRetries = maxRetries)) } }
     fun dismissErrorDialog() { _uiState.update { it.copy(showErrorDialog = false, errorMessage = "") } }
 
     fun onChannelSelected(channel: Channel) {
         _uiState.update {
-            it.copy(currentChannelName = channel.name ?: "", currentChannelUrl = channel.streamUrl ?: "", currentChannelObject = channel, licenseKey = channel.licenseKey, currentChannelEpg = null, isChannelListVisible = false, isControlsVisible = false, playbackState = PlaybackState.Buffering, selectedCategoryId = channel.categoryId)
+            it.copy(currentChannelName = channel.name ?: "", currentChannelUrl = channel.streamUrl ?: "", currentChannelObject = channel, licenseKey = channel.licenseKey, currentChannelEpg = null, isChannelListVisible = false, isControlsVisible = false, playbackState = LivePlaybackState.Buffering, selectedCategoryId = channel.categoryId)
         }
         fetchCurrentEpg(channel, Clock.System.now().toEpochMilliseconds())
     }
@@ -116,14 +116,7 @@ class LivePlayerViewModel(
     fun dismissSleepTimerDialog() { _uiState.update { it.copy(showSleepTimerDialog = false) } }
 
     fun cycleResizeMode() {
-        _uiState.update {
-            val nextMode = when (it.currentResizeMode) {
-                LivePlayerUiState.RESIZE_MODE_FIT -> LivePlayerUiState.RESIZE_MODE_FILL
-                LivePlayerUiState.RESIZE_MODE_FILL -> LivePlayerUiState.RESIZE_MODE_ZOOM
-                else -> LivePlayerUiState.RESIZE_MODE_FIT
-            }
-            it.copy(currentResizeMode = nextMode)
-        }
+        _uiState.update { it.copy(currentAspectMode = it.currentAspectMode.cycle()) }
     }
 
     fun initFromArgs(url: String, name: String, position: String, categoryTitle: String?, categoryId: Int, licenseKey: String?, isPiPSupported: Boolean, isTvDevice: Boolean) {
@@ -137,7 +130,7 @@ class LivePlayerViewModel(
                 currentChannelUrl = url?.trim() ?: it.currentChannelUrl, currentChannelName = if (!name.isNullOrBlank()) name else it.currentChannelName,
                 licenseKey = licenseKey ?: it.licenseKey, currentCategoryTitle = categoryTitle ?: it.currentCategoryTitle,
                 currentCategoryId = if (categoryId != -1) categoryId else it.currentCategoryId, selectedPosition = position ?: it.selectedPosition,
-                isControlsVisible = false, isChannelListVisible = false, playbackState = PlaybackState.Buffering,
+                isControlsVisible = false, isChannelListVisible = false, playbackState = LivePlaybackState.Buffering,
                 currentChannelEpg = if (titleEpg != null || descEpg != null || imgEpg != null) ChannelEpgInfo(channelId = null, channelName = name, programmeTitle = titleEpg, programmeDescription = descEpg, startTime = null, endTime = null, logo = imgEpg) else null
             )
         }

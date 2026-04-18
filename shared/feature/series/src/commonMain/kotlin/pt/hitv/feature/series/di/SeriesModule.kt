@@ -12,7 +12,8 @@ val seriesModule = module {
             preferencesHelper = get(),
             getSeriesPagerUseCase = get(),
             searchSeriesUseCase = get(),
-            toggleFavoriteSeriesUseCase = get()
+            toggleFavoriteSeriesUseCase = get(),
+            syncStateManager = get()
         )
     }
 

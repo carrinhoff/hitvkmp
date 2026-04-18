@@ -45,7 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.delay
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.common.Resources
@@ -79,7 +79,7 @@ fun MovieInfoContent(
     var savedPosition by remember { mutableStateOf<Long?>(null) }
     var refreshPositionTrigger by remember { mutableIntStateOf(0) }
 
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsState()
     val movieInfoCached = uiState.cachedMovieInfo
     val movieInfoNetwork = uiState.networkMovieInfo
     val movieCast = uiState.movieCast

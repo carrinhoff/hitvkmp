@@ -44,7 +44,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import app.cash.paging.LoadStateError
 import app.cash.paging.LoadStateLoading
 import app.cash.paging.LoadStateNotLoading
@@ -87,7 +87,7 @@ fun MovieCategoryDetailScreen(
     var showCategorySheet by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
 
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsState()
     val viewModelSearchQuery = uiState.currentSearchQuery
     var isSearchActive by remember { mutableStateOf(viewModelSearchQuery?.isNotEmpty() == true) }
     var searchQuery by remember { mutableStateOf(viewModelSearchQuery ?: "") }

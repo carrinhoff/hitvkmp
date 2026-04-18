@@ -11,6 +11,7 @@ import pt.hitv.core.navigation.navigateToSeriesDetail
 import pt.hitv.core.navigation.navigateToSeriesCategoryDetail
 import pt.hitv.feature.series.list.SeriesScreen
 import pt.hitv.feature.series.list.SeriesViewModel
+import pt.hitv.feature.settings.options.options.parental.ParentalSessionGuard
 
 class SeriesVoyagerScreen : Screen {
     override val key = "Series"
@@ -21,21 +22,23 @@ class SeriesVoyagerScreen : Screen {
         val analyticsHelper: AnalyticsHelper = koinInject()
         val navigator = LocalNavigator.currentOrThrow
 
-        SeriesScreen(
-            viewModel = viewModel,
-            analyticsHelper = analyticsHelper,
-            onSeriesClicked = { tvShow, _, clickType ->
-                when (clickType) {
-                    ClickType.CLICK -> navigator.navigateToSeriesDetail(tvShow.seriesId.toString())
-                    ClickType.LONG_CLICK -> viewModel.saveFavoriteTvShow(tvShow, false)
+        ParentalSessionGuard {
+            SeriesScreen(
+                viewModel = viewModel,
+                analyticsHelper = analyticsHelper,
+                onSeriesClicked = { tvShow, _, clickType ->
+                    when (clickType) {
+                        ClickType.CLICK -> navigator.navigateToSeriesDetail(tvShow.seriesId.toString())
+                        ClickType.LONG_CLICK -> viewModel.saveFavoriteTvShow(tvShow, false)
+                    }
+                },
+                onNavigateToCategory = { categoryId, categoryName ->
+                    navigator.navigateToSeriesCategoryDetail(categoryId, categoryName)
+                },
+                onManageCategoriesClick = {
+                    // TODO: Wire to manage categories navigation
                 }
-            },
-            onNavigateToCategory = { categoryId, categoryName ->
-                navigator.navigateToSeriesCategoryDetail(categoryId, categoryName)
-            },
-            onManageCategoriesClick = {
-                // TODO: Wire to manage categories navigation
-            }
-        )
+            )
+        }
     }
 }

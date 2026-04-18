@@ -124,8 +124,28 @@ fun Navigator.navigateToParentalControl() {
     push(ScreenRegistry.create(HitvScreen.PARENTAL_CONTROL))
 }
 
+fun Navigator.navigateToParentalPinSetup() {
+    push(ScreenRegistry.create(HitvScreen.PARENTAL_PIN_SETUP))
+}
+
+fun Navigator.navigateToParentalCategoryLock() {
+    push(ScreenRegistry.create(HitvScreen.PARENTAL_CATEGORY_LOCK))
+}
+
 fun Navigator.navigateToManageCategories() {
     push(ScreenRegistry.create(HitvScreen.MANAGE_CATEGORIES))
+}
+
+fun Navigator.navigateToBackgroundSyncSettings() {
+    push(ScreenRegistry.create(HitvScreen.BACKGROUND_SYNC_SETTINGS))
+}
+
+fun Navigator.navigateToTipsAndFeatures() {
+    push(ScreenRegistry.create(HitvScreen.TIPS_AND_FEATURES))
+}
+
+fun Navigator.navigateToAbout() {
+    push(ScreenRegistry.create(HitvScreen.ABOUT))
 }
 
 fun Navigator.navigateToFeedback() {

@@ -6,8 +6,11 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":shared:core:data"))
+            implementation(project(":shared:core:sync"))
             implementation(project(":shared:core:ui"))
             implementation(project(":shared:feature:player"))
+            // Pulls in ParentalSessionGuard for gating the movies tab.
+            implementation(project(":shared:feature:settings"))
             implementation(libs.findLibrary("paging-compose").get())
             implementation(libs.findLibrary("coil-compose").get())
         }

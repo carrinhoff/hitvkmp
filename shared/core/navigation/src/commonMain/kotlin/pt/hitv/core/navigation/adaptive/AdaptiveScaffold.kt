@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -38,12 +39,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.navigator.CurrentScreen
 import cafe.adriel.voyager.navigator.Navigator
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -54,11 +57,15 @@ import pt.hitv.core.designsystem.theme.AppThemeProvider
 import pt.hitv.core.model.enums.MainTab
 import pt.hitv.core.navigation.HitvScreen
 import pt.hitv.core.navigation.ScreenRegistry
+import pt.hitv.core.sync.EpgSyncResult
 import pt.hitv.core.sync.SyncManager
 import pt.hitv.core.sync.SyncManagerImpl
 import pt.hitv.core.sync.SyncState
 import pt.hitv.core.sync.SyncStateManager
 import pt.hitv.core.ui.components.DataPercentageLoader
+import pt.hitv.core.ui.components.EpgLoadingToaster
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 
 /**
  * Adaptive navigation scaffold shared across Android and iOS.
@@ -97,6 +104,21 @@ fun AdaptiveScaffold(
         val progress by syncStateManager.progress.collectAsState()
         val stageName by syncStateManager.stageName.collectAsState()
         val stageMessage by syncStateManager.stageMessage.collectAsState()
+        val epgProgressMessage by syncStateManager.epgProgressMessage.collectAsState()
+        val snackbarHostState = remember { SnackbarHostState() }
+
+        // Surface EPG sync outcomes as a snackbar — the original app shows
+        // Toast.makeText on worker finish (worker_epg_synced_successfully /
+        // worker_epg_sync_failed). A CMP snackbar matches that on both targets.
+        LaunchedEffect(syncStateManager) {
+            syncStateManager.epgSyncResult.collect { result ->
+                val msg = when (result) {
+                    is EpgSyncResult.Success -> "EPG updated successfully"
+                    is EpgSyncResult.Failure -> "EPG update failed: ${result.errorMessage ?: "Unknown error"}"
+                }
+                snackbarHostState.showSnackbar(msg)
+            }
+        }
 
         // Track sync completion to force-recreate tab content
         var syncVersion by remember { mutableStateOf(0) }
@@ -106,33 +128,25 @@ fun AdaptiveScaffold(
         val initialSyncDone = remember { preferencesHelper.getStoredBoolean("initial_sync_complete") }
         val needsSync = userId != -1 && !initialSyncDone
 
-        // Start sync immediately if needed (prevents blank flash — sync overlay shows on first frame)
-        if (needsSync && syncState == SyncState.IDLE) {
-            syncStateManager.startDataSync()
+        // Kick off the post-login sync via the singleton manager. The job
+        // lives in a scope owned by SyncStateManager so it SURVIVES Activity
+        // recreation (user backgrounding + foregrounding the app). Re-entrant:
+        // if a sync is already active, the call is a no-op and the composition
+        // just re-binds to the existing state.
+        LaunchedEffect(needsSync) {
+            if (!needsSync) return@LaunchedEffect
+            syncStateManager.startInitialSyncIfNeeded(
+                userId = userId,
+                syncManager = syncManager,
+                preferencesHelper = preferencesHelper,
+            )
         }
 
-        // Perform the actual sync work
-        LaunchedEffect(needsSync) {
-            if (needsSync) {
-                try {
-                    (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
-                        syncStateManager.updateProgress(p, s, m)
-                    }
-                    preferencesHelper.setStoredBoolean("initial_sync_complete", true)
-                    syncStateManager.onSyncComplete()
-                    syncVersion++
-
-                    // EPG sync with progress UI
-                    syncStateManager.startEpgSync()
-                    try {
-                        syncManager.syncEpg(userId)
-                        syncStateManager.onEpgSyncComplete()
-                    } catch (_: Exception) {
-                        syncStateManager.onEpgSyncComplete()
-                    }
-                } catch (e: Exception) {
-                    syncStateManager.onSyncFailed(e.message)
-                }
+        // Bump local syncVersion when the shared syncVersion increments —
+        // guarantees TabContentHost recreates screens once data is written.
+        LaunchedEffect(syncStateManager) {
+            syncStateManager.syncVersion.collect { v ->
+                if (v > 0) syncVersion = v
             }
         }
 
@@ -178,11 +192,15 @@ fun AdaptiveScaffold(
                 return@BoxWithConstraints
             }
 
+            // Hide nav chrome (bottom bar / side rail) whenever the ACTIVE tab's
+            // navigator has pushed a secondary screen on top of the tab root.
+            val showNavChrome = tabState.isTabOnRoot(activeTab)
+
             when (orientation) {
                 Orientation.LANDSCAPE -> {
                     Row(modifier = Modifier.fillMaxSize()) {
                         AnimatedVisibility(
-                            visible = true,
+                            visible = showNavChrome,
                             enter = expandHorizontally(
                                 animationSpec = tween(300, easing = FastOutSlowInEasing)
                             ),
@@ -216,7 +234,7 @@ fun AdaptiveScaffold(
                         )
 
                         AnimatedVisibility(
-                            visible = true,
+                            visible = showNavChrome,
                             enter = expandVertically(
                                 animationSpec = tween(300, easing = FastOutSlowInEasing),
                                 expandFrom = Alignment.Bottom
@@ -236,7 +254,21 @@ fun AdaptiveScaffold(
                 }
             }
 
-            // Sync overlay removed — handled above with return@BoxWithConstraints
+            // EPG sync toaster — mirrors the original EpgLoadingToaster overlay
+            // shown while SyncState.SYNCING_EPG is active.
+            EpgLoadingToaster(
+                isVisible = syncState == SyncState.SYNCING_EPG,
+                message = epgProgressMessage,
+                titleLabel = "EPG Update"
+            )
+
+            // Snackbar host for EPG success/failure feedback.
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                SnackbarHost(hostState = snackbarHostState)
+            }
         }
     }
 }
@@ -275,7 +307,16 @@ fun TabContentHost(
                     ScreenRegistry.create(hitvScreen)
                 }
 
-                Navigator(screen)
+                Navigator(screen) { navigator ->
+                    // Report stack size up to TabState so the scaffold can hide
+                    // the bottom nav when this tab pushes a secondary screen.
+                    LaunchedEffect(navigator) {
+                        snapshotFlow { navigator.items.size }.collect { size ->
+                            tabState.setNavStackSize(tab, size)
+                        }
+                    }
+                    CurrentScreen()
+                }
             }
         }
     }

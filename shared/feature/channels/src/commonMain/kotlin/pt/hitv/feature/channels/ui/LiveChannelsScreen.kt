@@ -41,12 +41,14 @@ fun LiveChannelsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val themeColors = getThemeColors()
 
-    // Log screen view + refresh data (handles post-sync reload)
+    // Log screen view + force full refresh on every fresh composition.
+    // Unconditional refresh covers: first-time composition after login/sync,
+    // screen re-creation triggered by syncVersion, and back-navigation from
+    // a secondary screen. The underlying VM methods cancel prior jobs so
+    // redundant calls are cheap.
     LaunchedEffect(Unit) {
         analyticsHelper.logScreenView(ScreenName.LIVE_CHANNELS, "LiveChannelsScreen")
-        viewModel.getFavorites()
-        viewModel.fetchRecentlyViewedChannels()
-        viewModel.fetchCategoryCounts()
+        viewModel.refreshAfterSync()
     }
 
     MobileChannelsLayout(

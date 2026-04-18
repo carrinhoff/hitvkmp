@@ -11,6 +11,7 @@ import pt.hitv.core.navigation.navigateToMovieDetail
 import pt.hitv.core.navigation.navigateToMovieCategoryDetail
 import pt.hitv.feature.movies.list.MovieViewModel
 import pt.hitv.feature.movies.ui.MoviesScreen
+import pt.hitv.feature.settings.options.options.parental.ParentalSessionGuard
 
 class MoviesVoyagerScreen : Screen {
     override val key = "Movies"
@@ -21,18 +22,20 @@ class MoviesVoyagerScreen : Screen {
         val analyticsHelper: AnalyticsHelper = koinInject()
         val navigator = LocalNavigator.currentOrThrow
 
-        MoviesScreen(
-            viewModel = viewModel,
-            analyticsHelper = analyticsHelper,
-            onMovieClicked = { movie, _, clickType ->
-                when (clickType) {
-                    ClickType.CLICK -> navigator.navigateToMovieDetail(movie.streamId)
-                    ClickType.LONG_CLICK -> viewModel.saveFavoriteMovie(movie, false)
+        ParentalSessionGuard {
+            MoviesScreen(
+                viewModel = viewModel,
+                analyticsHelper = analyticsHelper,
+                onMovieClicked = { movie, _, clickType ->
+                    when (clickType) {
+                        ClickType.CLICK -> navigator.navigateToMovieDetail(movie.streamId)
+                        ClickType.LONG_CLICK -> viewModel.saveFavoriteMovie(movie, false)
+                    }
+                },
+                onNavigateToCategory = { categoryId, categoryName ->
+                    navigator.navigateToMovieCategoryDetail(categoryId, categoryName)
                 }
-            },
-            onNavigateToCategory = { categoryId, categoryName ->
-                navigator.navigateToMovieCategoryDetail(categoryId, categoryName)
-            }
-        )
+            )
+        }
     }
 }

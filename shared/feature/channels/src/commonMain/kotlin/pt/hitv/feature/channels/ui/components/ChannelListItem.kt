@@ -183,14 +183,34 @@ fun ChannelListItem(
                     .fillMaxHeight(),
                 verticalArrangement = if (isCompact) Arrangement.Center else Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = channel.name.orEmpty(),
-                    color = themeColors.textColor,
-                    fontSize = if (isCompact) 14.sp else 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = channel.name.orEmpty(),
+                        color = themeColors.textColor,
+                        fontSize = if (isCompact) 14.sp else 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (channel.tvArchive > 0) {
+                        Box(
+                            modifier = Modifier
+                                .background(themeColors.primaryColor, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "CATCH-UP",
+                                color = themeColors.textColor,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
 
                 if (epgData != null && epgData.programmeTitle != null) {
                     Column(verticalArrangement = Arrangement.spacedBy(if (isCompact) 0.dp else 4.dp)) {

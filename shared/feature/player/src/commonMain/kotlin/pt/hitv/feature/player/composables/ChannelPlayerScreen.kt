@@ -66,8 +66,8 @@ import kotlinx.datetime.Clock
 import pt.hitv.core.designsystem.theme.getThemeColors
 import pt.hitv.core.model.Category
 import pt.hitv.core.model.Channel
+import pt.hitv.feature.player.LivePlaybackState
 import pt.hitv.feature.player.LivePlayerViewModel
-import pt.hitv.feature.player.PlaybackState
 import pt.hitv.feature.player.helpers.ChannelNavigationHelper
 import pt.hitv.feature.player.util.SleepTimerManager
 
@@ -140,12 +140,12 @@ fun ChannelPlayerScreen(
         playerViewFactory(Modifier.fillMaxSize())
 
         // Buffering indicator
-        if (uiState.playbackState is PlaybackState.Buffering) {
+        if (uiState.playbackState is LivePlaybackState.Buffering) {
             BufferingIndicator()
         }
 
         // Auto-retrying indicator
-        val playbackError = uiState.playbackState as? PlaybackState.Error
+        val playbackError = uiState.playbackState as? LivePlaybackState.Error
         if (playbackError?.isRetrying == true) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(

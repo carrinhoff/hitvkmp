@@ -33,6 +33,7 @@ import kotlinx.coroutines.delay
 import pt.hitv.core.designsystem.theme.ThemeManager
 import pt.hitv.core.designsystem.theme.getThemeColors
 import pt.hitv.core.model.Category
+import pt.hitv.core.model.CustomGroup
 
 /**
  * Advanced category bottom sheet content for channels.
@@ -64,10 +65,17 @@ fun AdvancedCategoryBottomSheetContent(
     allFilterId: String = "All",
     favoritesFilterId: String = "Favorites",
     recentlyViewedFilterId: String = "RecentlyViewed",
+    catchUpFilterId: String = "CatchUp",
     allCount: String = "...",
     favoritesCount: String = "0",
     recentCount: String = "0",
-    categoryCounts: Map<String, String> = emptyMap()
+    catchUpCount: String = "0",
+    showCatchUp: Boolean = false,
+    categoryCounts: Map<String, String> = emptyMap(),
+    customGroups: List<CustomGroup> = emptyList(),
+    customGroupPrefix: String = "custom_group_",
+    onManageCategories: (() -> Unit)? = null,
+    onManageCustomGroups: (() -> Unit)? = null
 ) {
     val themeColors = getThemeColors()
 
@@ -177,6 +185,20 @@ fun AdvancedCategoryBottomSheetContent(
                 }
             }
 
+            // Catch Up (only shown when channels with catch-up exist)
+            if (showCatchUp && (categorySearchQuery.isBlank() || "catch up".contains(categorySearchQuery, ignoreCase = true))) {
+                item(key = "__catch_up") {
+                    ChannelCategoryItemCard(
+                        icon = Icons.Default.Replay,
+                        name = "Catch Up",
+                        count = catchUpCount,
+                        isSelected = selectedCategoryFilter == catchUpFilterId,
+                        onClick = { onCategorySelected(catchUpFilterId) },
+                        themeColors = themeColors
+                    )
+                }
+            }
+
             // Server categories
             items(filteredCategories, key = { it.categoryId }) { category ->
                 ChannelCategoryItemCard(
@@ -187,6 +209,47 @@ fun AdvancedCategoryBottomSheetContent(
                     onClick = { onCategorySelected(category.categoryId.toString()) },
                     themeColors = themeColors
                 )
+            }
+
+            // Custom groups (user-created)
+            val filteredGroups = if (categorySearchQuery.isBlank()) customGroups
+                else customGroups.filter { it.name.contains(categorySearchQuery, ignoreCase = true) }
+            items(filteredGroups, key = { "cg_${it.id}" }) { group ->
+                ChannelCategoryItemCard(
+                    icon = Icons.Default.Folder,
+                    name = group.name,
+                    count = "",
+                    isSelected = selectedCategoryFilter == "$customGroupPrefix${group.id}",
+                    onClick = { onCategorySelected("$customGroupPrefix${group.id}") },
+                    themeColors = themeColors
+                )
+            }
+
+            // Footer actions — Manage Categories / Custom Groups
+            if (categorySearchQuery.isBlank() && (onManageCategories != null || onManageCustomGroups != null)) {
+                item(key = "__footer_actions") {
+                    Column(
+                        modifier = Modifier.padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        onManageCategories?.let { action ->
+                            ManageActionCard(
+                                icon = Icons.Default.Tune,
+                                label = "Manage Categories",
+                                onClick = action,
+                                themeColors = themeColors
+                            )
+                        }
+                        onManageCustomGroups?.let { action ->
+                            ManageActionCard(
+                                icon = Icons.Default.CreateNewFolder,
+                                label = "Custom Groups",
+                                onClick = action,
+                                themeColors = themeColors
+                            )
+                        }
+                    }
+                }
             }
 
             // Empty state
@@ -576,6 +639,48 @@ private fun ChannelCategoryItemCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ManageActionCard(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    themeColors: ThemeManager.AppTheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = themeColors.primaryColor.copy(alpha = 0.10f)
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = themeColors.primaryColor,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = themeColors.textColor,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = themeColors.textColor.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

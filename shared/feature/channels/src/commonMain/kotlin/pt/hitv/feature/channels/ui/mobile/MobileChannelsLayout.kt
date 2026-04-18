@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,18 +29,47 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import app.cash.paging.compose.collectAsLazyPagingItems
 import app.cash.paging.compose.itemKey
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
+import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.data.paging.CHANNEL_FILTER_ALL
+import pt.hitv.core.data.paging.CHANNEL_FILTER_CATCH_UP
 import pt.hitv.core.data.paging.CHANNEL_FILTER_FAVORITES
 import pt.hitv.core.data.paging.CHANNEL_FILTER_RECENTLY_VIEWED
 import pt.hitv.core.designsystem.compose.AdvancedCategoryBottomSheetContent
+import pt.hitv.core.designsystem.compose.ChannelListItemSkeleton
+import pt.hitv.core.designsystem.compose.SharedEmptyMessage
 import pt.hitv.core.designsystem.theme.getThemeColors
+import pt.hitv.core.domain.manager.ParentalControlManager
 import pt.hitv.core.model.Channel
+import pt.hitv.core.sync.SyncStateManager
 import pt.hitv.feature.channels.ui.components.ChannelPreviewComposable
 import pt.hitv.core.model.ChannelEpgInfo
 import pt.hitv.core.model.Category
+import pt.hitv.core.model.ContentType
 import pt.hitv.core.model.enums.ClickType
+import pt.hitv.core.ui.categories.ManageCategoriesScreen
+import pt.hitv.core.ui.categories.ManageCategoriesViewModel
+import pt.hitv.core.ui.components.PagingErrorState
+import pt.hitv.core.ui.components.ParentalControlCheck
+import pt.hitv.core.ui.components.SearchHistoryChips
+import pt.hitv.core.ui.customgroups.AddChannelsScreen
+import pt.hitv.core.ui.customgroups.AddChannelsViewModel
+import pt.hitv.core.ui.customgroups.CreateGroupDialog
+import pt.hitv.core.ui.customgroups.CustomGroupsScreen
+import pt.hitv.core.ui.customgroups.CustomGroupsViewModel
+import pt.hitv.core.ui.customgroups.EditGroupScreen
+import pt.hitv.core.model.CustomGroup
+import pt.hitv.core.data.paging.CHANNEL_FILTER_CUSTOM_GROUP_PREFIX
 import pt.hitv.feature.channels.StreamUiState
 import pt.hitv.feature.channels.StreamViewModel
 import pt.hitv.feature.channels.ui.components.ChannelListItem
@@ -49,7 +81,7 @@ import pt.hitv.feature.channels.ui.components.ChannelListItem
  * List: LazyColumn with 12dp spacing, 16dp padding
  * Channel items: 100dp height with 76dp logo placeholder
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun MobileChannelsLayout(
     viewModel: StreamViewModel,
@@ -63,11 +95,42 @@ fun MobileChannelsLayout(
     val lazyPagingItems = viewModel.channelsPagerFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
 
+    // Koin-injected deps for parental / manage categories / custom groups
+    val parentalControlManager: ParentalControlManager = koinInject()
+    val preferencesHelper: PreferencesHelper = koinInject()
+    val manageCategoriesViewModel: ManageCategoriesViewModel = koinInject()
+    val customGroupsViewModel: CustomGroupsViewModel = koinInject()
+    val addChannelsViewModel: AddChannelsViewModel = koinInject()
+    val syncStateManager: SyncStateManager = koinInject()
+    val userId = remember { preferencesHelper.getUserId() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // React to sync completion — Voyager caches the Navigator across the
+    // sync overlay's dispose/restore, so LaunchedEffect(Unit) only fires once
+    // (pre-sync, when the DB was empty). Keying on syncVersion guarantees we
+    // re-trigger the paging refresh the moment sync increments it.
+    val syncVersion by syncStateManager.syncVersion.collectAsState()
+    LaunchedEffect(syncVersion) {
+        // Pull fresh categories/favorites/recent + invalidate paging cache.
+        viewModel.refreshAfterSync()
+        lazyPagingItems.refresh()
+    }
+
+    val customGroups by customGroupsViewModel.customGroups.collectAsState()
+
     // EPG cache shared across all channel list items
     val epgCache = remember { SnapshotStateMap<String, ChannelEpgInfo?>() }
     val epgLoadingSet = remember { mutableStateListOf<String>() }
 
-    // Refresh paging when favorites toggle (or other events)
+    // Unconditional first-composition refresh. The channels PagingData is
+    // cached in viewModelScope, and if the VM was created while the DB was
+    // still empty (right after login / during sync), the cached empty result
+    // sticks until something invalidates. This guarantees a fresh load.
+    LaunchedEffect(Unit) {
+        lazyPagingItems.refresh()
+    }
+
+    // Refresh paging when favorites toggle or refreshAfterSync fires.
     LaunchedEffect(Unit) {
         viewModel.refreshPagingEvent.collect {
             lazyPagingItems.refresh()
@@ -77,16 +140,61 @@ fun MobileChannelsLayout(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
-    // Category dropdown
+    // Original behaviour: 1500 ms debounce + 3-char minimum (avoids hammering FTS
+    // on every keystroke and fetching results for one or two characters).
+    LaunchedEffect(Unit) {
+        snapshotFlow { searchQuery }
+            .debounce(1500)
+            .distinctUntilChanged()
+            .collect { raw ->
+                val trimmed = raw.trim()
+                when {
+                    trimmed.isEmpty() -> onSearchQueryChanged(null)
+                    trimmed.length >= 3 -> onSearchQueryChanged(trimmed)
+                    else -> { /* 1-2 chars: hold until the user types more or clears */ }
+                }
+            }
+    }
+
+    // Category dropdown + manage categories + custom groups
     var showCategorySheet by remember { mutableStateOf(false) }
-    val selectedCategoryName = remember(uiState.currentCategoryFilter, uiState.categories) {
-        when (uiState.currentCategoryFilter) {
+    var showManageCategoriesDialog by remember { mutableStateOf(false) }
+    var showCustomGroupsDialog by remember { mutableStateOf(false) }
+
+    // Parental control PIN flow — pending category selection
+    var pendingCategoryFilter by remember { mutableStateOf<String?>(null) }
+    var pendingCategoryId by remember { mutableStateOf<Long?>(null) }
+
+    // Hide top bar on scroll-down, show on scroll-up (kicks in on any orientation
+    // — original does this only in landscape but CMP has no simple config.orientation).
+    var isTopBarVisible by remember { mutableStateOf(true) }
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val dy = available.y
+                if (dy < -5f) isTopBarVisible = false
+                else if (dy > 5f) isTopBarVisible = true
+                return Offset.Zero
+            }
+        }
+    }
+    val selectedCategoryName = remember(uiState.currentCategoryFilter, uiState.categories, customGroups) {
+        when (val filter = uiState.currentCategoryFilter) {
             CHANNEL_FILTER_ALL -> "All"
             CHANNEL_FILTER_FAVORITES -> "Favorites"
             CHANNEL_FILTER_RECENTLY_VIEWED -> "Recently Viewed"
-            else -> uiState.categories.find {
-                it.categoryId.toString() == uiState.currentCategoryFilter
-            }?.categoryName ?: "All"
+            CHANNEL_FILTER_CATCH_UP -> "Catch Up"
+            null -> "All"
+            else -> {
+                if (filter.startsWith(CHANNEL_FILTER_CUSTOM_GROUP_PREFIX)) {
+                    val gid = filter.removePrefix(CHANNEL_FILTER_CUSTOM_GROUP_PREFIX).toLongOrNull()
+                    customGroups.find { it.id == gid }?.name ?: "All"
+                } else {
+                    uiState.categories.find {
+                        it.categoryId.toString() == filter
+                    }?.categoryName ?: "All"
+                }
+            }
         }
     }
 
@@ -101,8 +209,14 @@ fun MobileChannelsLayout(
         modifier = Modifier
             .fillMaxSize()
             .background(themeColors.backgroundPrimary)
+            .nestedScroll(nestedScrollConnection)
     ) {
         // === Top App Bar — ported from original SharedMobileTopAppBar ===
+        AnimatedVisibility(
+            visible = isTopBarVisible,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
         TopAppBar(
             title = {
                 Box(modifier = Modifier.padding(start = 4.dp)) {
@@ -133,8 +247,9 @@ fun MobileChannelsLayout(
                                     androidx.compose.foundation.text.BasicTextField(
                                         value = searchQuery,
                                         onValueChange = { query ->
+                                            // Just update local state — the debounced
+                                            // LaunchedEffect above fires the actual query.
                                             searchQuery = query
-                                            onSearchQueryChanged(query.takeIf { it.isNotBlank() })
                                         },
                                         modifier = Modifier
                                             .weight(1f)
@@ -237,17 +352,73 @@ fun MobileChannelsLayout(
                 actionIconContentColor = themeColors.textColor
             )
         )
+        }
 
-        // Track which channel has expanded preview
+        // Recent searches strip — only when search is focused + query is empty.
+        if (isSearchActive && searchQuery.isEmpty()) {
+            val historyItems by viewModel.searchHistory.collectAsState()
+            SearchHistoryChips(
+                items = historyItems,
+                onItemClick = { item ->
+                    searchQuery = item.query
+                    onSearchQueryChanged(item.query)
+                },
+                onItemDelete = { viewModel.deleteSearchHistoryItem(it.id) },
+                onClearAll = { viewModel.clearSearchHistory() },
+                primaryColor = themeColors.primaryColor,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+
+        // Track which channel has expanded preview (portrait inline) AND which is
+        // currently mirrored to the side pane (landscape).
         var expandedChannelId by remember { mutableStateOf<String?>(null) }
+        var selectedPreviewChannel by remember { mutableStateOf<Channel?>(null) }
 
         // === Channel List — matches original spacing ===
-        if (uiState.isLoading && lazyPagingItems.itemCount == 0) {
+        val hasAnyContent = uiState.categories.isNotEmpty() ||
+            uiState.favorites.isNotEmpty() ||
+            uiState.recentlyViewedChannels.isNotEmpty() ||
+            lazyPagingItems.itemCount > 0
+
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // Mirrors the original `MobileChannelsLandscape` 40/60 split. Threshold of
+            // 600 dp catches landscape phones (≥640 dp typical) and tablets — matches
+            // the spanCount guard the original used in the legacy XML grid.
+            val isWide = maxWidth >= 600.dp
+            val refreshState = lazyPagingItems.loadState.refresh
+
+            val listBlock: @Composable () -> Unit = {
+                if (!hasAnyContent && refreshState is app.cash.paging.LoadStateError) {
+            // Initial load failed — show retry instead of empty/skeletons.
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = themeColors.primaryColor)
+                PagingErrorState(
+                    message = refreshState.error.message,
+                    onRetry = { lazyPagingItems.retry() }
+                )
+            }
+        } else if (!hasAnyContent && uiState.isLoading) {
+            // Shimmer skeletons while initial data loads
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(10) { ChannelListItemSkeleton() }
+            }
+        } else if (!hasAnyContent) {
+            // Empty state after loading completes
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                SharedEmptyMessage(
+                    message = "No channels available",
+                    subtitle = "Pull to refresh or try a different category."
+                )
             }
         } else {
             LazyColumn(
@@ -279,8 +450,10 @@ fun MobileChannelsLayout(
                                                 onChannelClicked(channel, index)
                                                 expandedChannelId = null
                                             } else {
-                                                // Single click → toggle preview
+                                                // Single click → toggle preview (portrait)
+                                                // and mirror the selection to the side pane (landscape).
                                                 expandedChannelId = if (expandedChannelId == channel.id) null else channel.id
+                                                selectedPreviewChannel = channel
                                             }
                                             lastClickTime = now
                                             lastClickedId = channel.id
@@ -297,9 +470,10 @@ fun MobileChannelsLayout(
                                 viewModel = viewModel
                             )
 
-                            // Expandable preview
+                            // Expandable preview — only inline in portrait. In landscape
+                            // the preview lives in the side pane.
                             AnimatedVisibility(
-                                visible = expandedChannelId == channel.id && !channel.streamUrl.isNullOrBlank(),
+                                visible = !isWide && expandedChannelId == channel.id && !channel.streamUrl.isNullOrBlank(),
                                 enter = fadeIn(tween(300)) + expandVertically(tween(300)),
                                 exit = fadeOut(tween(300)) + shrinkVertically(tween(300))
                             ) {
@@ -331,8 +505,53 @@ fun MobileChannelsLayout(
                         }
                     }
                 }
+
+                // Append error — small inline retry so the user can recover without
+                // losing already-loaded items.
+                val appendState = lazyPagingItems.loadState.append
+                if (appendState is app.cash.paging.LoadStateError) {
+                    item {
+                        PagingErrorState(
+                            message = appendState.error.message,
+                            onRetry = { lazyPagingItems.retry() }
+                        )
+                    }
+                }
             }
         }
+            } // end listBlock lambda
+
+            if (isWide) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) { listBlock() }
+                    Box(
+                        modifier = Modifier
+                            .weight(0.6f)
+                            .fillMaxHeight()
+                            .background(themeColors.backgroundSecondary)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val ch = selectedPreviewChannel
+                        if (ch != null && !ch.streamUrl.isNullOrBlank()) {
+                            ChannelPreviewComposable(
+                                channel = ch,
+                                onClose = { selectedPreviewChannel = null },
+                                onPreviewClicked = { onChannelClicked(ch, -1) }
+                            )
+                        } else {
+                            Text(
+                                text = "Select a channel to preview",
+                                color = themeColors.textColor.copy(alpha = 0.5f),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                listBlock()
+            }
+        } // end BoxWithConstraints
     }
 
     // === Category Bottom Sheet ===
@@ -357,9 +576,28 @@ fun MobileChannelsLayout(
                 categorySearchQuery = categorySearchQuery,
                 onCategorySearchQueryChanged = { categorySearchQuery = it },
                 onCategorySelected = { filterId ->
-                    onCategorySelected(filterId)
-                    categorySearchQuery = ""
-                    showCategorySheet = false
+                    // Parental PIN check — only for real category IDs (numeric), not for
+                    // All / Favorites / RecentlyViewed / custom groups.
+                    val numericId = filterId.toLongOrNull()
+                    if (numericId != null) {
+                        coroutineScope.launch {
+                            val locked = parentalControlManager.requiresPinForCategory(numericId, userId)
+                            if (locked) {
+                                pendingCategoryFilter = filterId
+                                pendingCategoryId = numericId
+                                showCategorySheet = false
+                                categorySearchQuery = ""
+                            } else {
+                                onCategorySelected(filterId)
+                                showCategorySheet = false
+                                categorySearchQuery = ""
+                            }
+                        }
+                    } else {
+                        onCategorySelected(filterId)
+                        showCategorySheet = false
+                        categorySearchQuery = ""
+                    }
                 },
                 onDismiss = {
                     categorySearchQuery = ""
@@ -368,11 +606,147 @@ fun MobileChannelsLayout(
                 allFilterId = CHANNEL_FILTER_ALL,
                 favoritesFilterId = CHANNEL_FILTER_FAVORITES,
                 recentlyViewedFilterId = CHANNEL_FILTER_RECENTLY_VIEWED,
+                catchUpFilterId = CHANNEL_FILTER_CATCH_UP,
                 allCount = uiState.categoryCounts[CHANNEL_FILTER_ALL]?.toString() ?: "...",
                 favoritesCount = uiState.favorites.size.toString(),
                 recentCount = uiState.recentlyViewedChannels.size.toString(),
-                categoryCounts = uiState.categoryCounts.mapValues { it.value.toString() }
+                catchUpCount = (uiState.categoryCounts[CHANNEL_FILTER_CATCH_UP] ?: 0).toString(),
+                showCatchUp = (uiState.categoryCounts[CHANNEL_FILTER_CATCH_UP] ?: 0) > 0,
+                categoryCounts = uiState.categoryCounts.mapValues { it.value.toString() },
+                customGroups = customGroups,
+                customGroupPrefix = CHANNEL_FILTER_CUSTOM_GROUP_PREFIX,
+                onManageCategories = {
+                    showCategorySheet = false
+                    categorySearchQuery = ""
+                    showManageCategoriesDialog = true
+                },
+                onManageCustomGroups = {
+                    showCategorySheet = false
+                    categorySearchQuery = ""
+                    showCustomGroupsDialog = true
+                }
             )
         }
+    }
+
+    // === Custom Groups management dialog ===
+    if (showCustomGroupsDialog) {
+        val groupChannels by customGroupsViewModel.groupChannels.collectAsState()
+        var showCreateDialog by remember { mutableStateOf(false) }
+        var showEditScreen by remember { mutableStateOf(false) }
+        var showAddChannelsScreen by remember { mutableStateOf(false) }
+        var selectedGroup by remember { mutableStateOf<CustomGroup?>(null) }
+
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showCustomGroupsDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            when {
+                showAddChannelsScreen && selectedGroup != null -> {
+                    AddChannelsScreen(
+                        groupId = selectedGroup!!.id,
+                        viewModel = addChannelsViewModel,
+                        onNavigateBack = { showAddChannelsScreen = false },
+                        onChannelsAdded = {
+                            showAddChannelsScreen = false
+                            customGroupsViewModel.loadGroupChannels(selectedGroup!!.id)
+                            val currentFilter = uiState.currentCategoryFilter
+                            val groupFilter = "${CHANNEL_FILTER_CUSTOM_GROUP_PREFIX}${selectedGroup!!.id}"
+                            if (currentFilter == groupFilter) {
+                                viewModel.invalidateChannelsPaging()
+                            }
+                        }
+                    )
+                }
+                showEditScreen && selectedGroup != null -> {
+                    LaunchedEffect(selectedGroup) {
+                        customGroupsViewModel.loadGroupChannels(selectedGroup!!.id)
+                    }
+                    EditGroupScreen(
+                        group = selectedGroup!!,
+                        channels = groupChannels,
+                        onNavigateBack = {
+                            showEditScreen = false
+                            selectedGroup = null
+                        },
+                        onSaveGroup = { updated -> customGroupsViewModel.updateCustomGroup(updated) },
+                        onAddChannels = { showAddChannelsScreen = true },
+                        onRemoveChannel = { channel ->
+                            val cid = channel.id?.toLongOrNull()
+                            if (cid != null) {
+                                customGroupsViewModel.removeChannelFromGroup(selectedGroup!!.id, cid)
+                                val currentFilter = uiState.currentCategoryFilter
+                                val groupFilter = "${CHANNEL_FILTER_CUSTOM_GROUP_PREFIX}${selectedGroup!!.id}"
+                                if (currentFilter == groupFilter) {
+                                    viewModel.invalidateChannelsPaging()
+                                }
+                            }
+                        },
+                        onReorderChannels = { /* drag-reorder not implemented yet */ }
+                    )
+                }
+                else -> {
+                    CustomGroupsScreen(
+                        customGroups = customGroups,
+                        onCreateGroup = { showCreateDialog = true },
+                        onEditGroup = { group ->
+                            selectedGroup = group
+                            showEditScreen = true
+                        },
+                        onDeleteGroup = { group -> customGroupsViewModel.deleteCustomGroup(group.id) },
+                        onNavigateBack = { showCustomGroupsDialog = false }
+                    )
+                }
+            }
+        }
+
+        if (showCreateDialog) {
+            CreateGroupDialog(
+                onDismiss = { showCreateDialog = false },
+                onCreate = { name, icon ->
+                    customGroupsViewModel.createCustomGroup(name, icon)
+                    showCreateDialog = false
+                }
+            )
+        }
+    }
+
+    // === Manage Categories dialog ===
+    if (showManageCategoriesDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showManageCategoriesDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            ManageCategoriesScreen(
+                viewModel = manageCategoriesViewModel,
+                backgroundColor = themeColors.backgroundPrimary,
+                primaryColor = themeColors.primaryColor,
+                secondaryBackgroundColor = themeColors.backgroundSecondary,
+                textColor = themeColors.textColor,
+                textSecondaryColor = themeColors.textColor.copy(alpha = 0.7f),
+                singleContentType = ContentType.CHANNELS,
+                onNavigateBack = { showManageCategoriesDialog = false }
+            )
+        }
+    }
+
+    // === Parental Control PIN check ===
+    val pid = pendingCategoryId
+    val pfilter = pendingCategoryFilter
+    if (pid != null && pfilter != null) {
+        ParentalControlCheck(
+            categoryId = pid,
+            userId = userId,
+            parentalControlManager = parentalControlManager,
+            onAccessGranted = {
+                onCategorySelected(pfilter)
+                pendingCategoryId = null
+                pendingCategoryFilter = null
+            },
+            onDismiss = {
+                pendingCategoryId = null
+                pendingCategoryFilter = null
+            }
+        )
     }
 }

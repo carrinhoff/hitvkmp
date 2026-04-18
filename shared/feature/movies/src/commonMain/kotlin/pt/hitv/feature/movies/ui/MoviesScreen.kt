@@ -86,10 +86,12 @@ fun MoviesScreen(
     // Track scroll-to-category request from bottom sheet
     var scrollToCategoryId by remember { mutableStateOf<String?>(null) }
 
-    // Fetch initial data (also re-fetches after sync via screen recreation)
+    // Force full refresh on every composition — covers first-time composition
+    // right after sync completes, screen recreation via syncVersion, and
+    // back-navigation. refreshAfterSync also re-runs the category load so
+    // content shows even if the VM was instantiated before sync finished.
     LaunchedEffect(Unit) {
-        viewModel.getFavorites()
-        viewModel.fetchRecentlyViewedMovies()
+        viewModel.refreshAfterSync()
         viewModel.fetchLastAddedMovies()
         viewModel.fetchContinueWatchingMovies()
     }

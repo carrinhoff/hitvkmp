@@ -17,6 +17,14 @@ import pt.hitv.core.domain.usecases.GetChannelsByCategoryUseCase
 import pt.hitv.core.domain.usecases.ToggleFavoriteChannelUseCase
 import pt.hitv.core.model.*
 import pt.hitv.core.data.paging.CHANNEL_FILTER_ALL
+import pt.hitv.core.data.paging.CHANNEL_FILTER_CATCH_UP
+import pt.hitv.core.domain.repositories.SearchHistoryRepository
+import pt.hitv.core.model.SearchHistoryItem
+import pt.hitv.core.sync.SyncStateManager
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.data.manager.UserSessionManager
 import pt.hitv.core.domain.repositories.AccountManagerRepository
@@ -55,8 +63,39 @@ class StreamViewModel(
     private val preferencesHelper: PreferencesHelper,
     private val accountManagerRepository: AccountManagerRepository,
     private val getChannelsByCategoryUseCase: GetChannelsByCategoryUseCase,
-    private val toggleFavoriteChannelUseCase: ToggleFavoriteChannelUseCase
+    private val toggleFavoriteChannelUseCase: ToggleFavoriteChannelUseCase,
+    private val searchHistoryRepository: SearchHistoryRepository,
+    private val syncStateManager: SyncStateManager
 ) : ViewModel() {
+
+    /** Recent searches for the Channels tab. Emits whenever the table changes. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val searchHistory: StateFlow<List<SearchHistoryItem>> = userSessionManager.userIdFlow
+        .flatMapLatest { uid ->
+            if (uid == -1) kotlinx.coroutines.flow.flowOf(emptyList())
+            else searchHistoryRepository.observe(uid, SearchHistoryRepository.KIND_CHANNEL)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun deleteSearchHistoryItem(id: Long) {
+        viewModelScope.launch { searchHistoryRepository.deleteById(id) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch {
+            searchHistoryRepository.clear(_currentUserId.value, SearchHistoryRepository.KIND_CHANNEL)
+        }
+    }
+
+    private fun rememberSearchTerm(query: String) {
+        viewModelScope.launch {
+            searchHistoryRepository.add(
+                userId = _currentUserId.value,
+                kind = SearchHistoryRepository.KIND_CHANNEL,
+                query = query
+            )
+        }
+    }
 
     private val _uiState = MutableStateFlow(StreamUiState())
     val uiState: StateFlow<StreamUiState> = _uiState.asStateFlow()
@@ -70,15 +109,29 @@ class StreamViewModel(
         )
     val currentUserId: StateFlow<Int> = _currentUserId
 
-    private val _refreshPagingEvent = MutableSharedFlow<Unit>()
+    // Buffered + replay so refresh signals fired BEFORE the paging collector
+    // subscribes (the post-sync flow on first install) still reach a late
+    // subscriber. Without replay the emit from refreshAfterSync() runs before
+    // MobileChannelsLayout's `.collect { lazyPagingItems.refresh() }` starts,
+    // and the channels list keeps showing the cached empty PagingData.
+    private val _refreshPagingEvent = MutableSharedFlow<Unit>(
+        replay = 1,
+        extraBufferCapacity = 1,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     val refreshPagingEvent: SharedFlow<Unit> = _refreshPagingEvent.asSharedFlow()
 
+    // Guarantees a fresh PagingSource whenever a data sync lands — even if the
+    // VM was instantiated AFTER syncVersion already incremented (Koin singletons
+    // outlive the sync overlay teardown). Without this the cached empty
+    // PagingData from a pre-data DB read can stick until force-close.
     @OptIn(ExperimentalCoroutinesApi::class)
     val channelsPagerFlow: Flow<PagingData<Channel>> = combine(
         _currentUserId,
         _uiState.map { it.currentCategoryFilter }.distinctUntilChanged(),
-        _uiState.map { it.currentSearchQuery }.distinctUntilChanged()
-    ) { userId, category, query -> Triple(userId, category, query) }
+        _uiState.map { it.currentSearchQuery }.distinctUntilChanged(),
+        syncStateManager.syncVersion
+    ) { userId, category, query, _ -> Triple(userId, category, query) }
         .flatMapLatest { (_, category, query) ->
             getChannelsByCategoryUseCase(category, query)
         }.cachedIn(viewModelScope)
@@ -96,6 +149,27 @@ class StreamViewModel(
                 }
             }
         }
+
+        // Re-pull everything whenever a sync completes — VMs are Koin singletons
+        // so they'd otherwise keep the pre-sync empty state. drop(1) skips the
+        // initial value and only reacts to increments.
+        viewModelScope.launch {
+            syncStateManager.syncVersion.drop(1).collect { refreshAfterSync() }
+        }
+    }
+
+    /**
+     * Manual refresh entry point — called by UI on pull-to-refresh or when a
+     * screen reopens after sync completes. Safe to call multiple times.
+     */
+    fun refreshAfterSync() {
+        val uid = _currentUserId.value
+        if (uid == -1) return
+        fetchChannelCategories()
+        getFavorites()
+        fetchRecentlyViewedChannels()
+        fetchCategoryCounts()
+        viewModelScope.launch { _refreshPagingEvent.emit(Unit) }
     }
 
     private fun loadDefaultCategory() {
@@ -130,6 +204,7 @@ class StreamViewModel(
         val trimmedQuery = query?.trim().takeIf { !it.isNullOrEmpty() }
         if (_uiState.value.currentSearchQuery != trimmedQuery) {
             _uiState.update { it.copy(currentSearchQuery = trimmedQuery) }
+            if (!trimmedQuery.isNullOrBlank()) rememberSearchTerm(trimmedQuery)
         }
     }
 
@@ -182,12 +257,16 @@ class StreamViewModel(
 
     suspend fun getTotalChannelCount(): Int = repository.getTotalChannelCount()
     suspend fun getCategoryChannelCount(categoryId: String): Int = repository.getCategoryChannelCount(categoryId)
+    suspend fun getCatchUpChannelCount(): Int = repository.getCatchUpChannelCount()
 
     fun fetchCategoryCounts() {
         viewModelScope.launch {
             try {
                 val totalCount = getTotalChannelCount()
                 _uiState.update { it.copy(categoryCounts = it.categoryCounts + (CHANNEL_FILTER_ALL to totalCount)) }
+
+                val catchUp = getCatchUpChannelCount()
+                _uiState.update { it.copy(categoryCounts = it.categoryCounts + (CHANNEL_FILTER_CATCH_UP to catchUp)) }
 
                 _uiState.value.categories.forEach { category ->
                     val count = getCategoryChannelCount(category.categoryId.toString())

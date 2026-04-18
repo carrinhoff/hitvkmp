@@ -9,6 +9,13 @@ import kotlinx.coroutines.launch
 import pt.hitv.core.designsystem.theme.ThemeManager
 import pt.hitv.core.designsystem.theme.ThemeManager.AppTheme
 
+/**
+ * View model for the Theme Studio screen.
+ *
+ * Theme Studio ships ungated per plan — every [AppTheme] is selectable regardless
+ * of premium/IAP status. The view model intentionally bypasses [ThemeManager.setTheme]'s
+ * premium gate by writing the theme tag directly + notifying listeners via the manager API.
+ */
 class ThemeSettingsViewModel(
     private val themeManager: ThemeManager
 ) : ViewModel() {
@@ -16,7 +23,12 @@ class ThemeSettingsViewModel(
     private val _currentTheme = MutableStateFlow(themeManager.getCurrentTheme())
     val currentTheme: StateFlow<AppTheme> = _currentTheme.asStateFlow()
 
-    private val _hasPremiumThemes = MutableStateFlow(themeManager.hasPremiumThemes())
+    /** All themes are selectable — no IAP gate. */
+    val availableThemes: StateFlow<List<AppTheme>> =
+        MutableStateFlow(AppTheme.values().toList()).asStateFlow()
+
+    // Retained for any existing premium UI consumers; no longer used as a gate here.
+    private val _hasPremiumThemes = MutableStateFlow(true)
     val hasPremiumThemes: StateFlow<Boolean> = _hasPremiumThemes.asStateFlow()
 
     private val _purchaseState = MutableStateFlow<PurchaseState>(PurchaseState.Idle)
@@ -29,14 +41,14 @@ class ThemeSettingsViewModel(
         data class Error(val message: String) : PurchaseState()
     }
 
-    init {
-        _hasPremiumThemes.value = themeManager.hasPremiumThemes()
-    }
-
     fun selectTheme(theme: AppTheme) {
         viewModelScope.launch {
-            val success = themeManager.setTheme(theme)
-            if (success) _currentTheme.value = theme
+            // Ungated selection: call through ThemeManager, which persists + notifies.
+            // For premium themes, setTheme() returns false due to its internal gate,
+            // so we fall back to the ungated path that writes the preference + notifies.
+            val accepted = themeManager.setTheme(theme)
+            if (!accepted) themeManager.selectThemeUngated(theme)
+            _currentTheme.value = theme
         }
     }
 

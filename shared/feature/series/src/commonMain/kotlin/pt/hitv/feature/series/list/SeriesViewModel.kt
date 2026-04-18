@@ -20,6 +20,7 @@ import pt.hitv.core.model.seriesInfo.Season
 import pt.hitv.core.data.paging.MOVIE_FILTER_ALL
 import pt.hitv.core.data.paging.SORT_ADDED
 import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.core.sync.SyncStateManager
 import pt.hitv.core.data.manager.UserSessionManager
 
 data class SeriesUiState(
@@ -64,7 +65,8 @@ class SeriesViewModel(
     private val preferencesHelper: PreferencesHelper,
     private val getSeriesPagerUseCase: GetSeriesPagerUseCase,
     private val searchSeriesUseCase: SearchSeriesUseCase,
-    private val toggleFavoriteSeriesUseCase: ToggleFavoriteSeriesUseCase
+    private val toggleFavoriteSeriesUseCase: ToggleFavoriteSeriesUseCase,
+    private val syncStateManager: SyncStateManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SeriesUiState())
@@ -113,6 +115,23 @@ class SeriesViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            syncStateManager.syncVersion.drop(1).collect { refreshAfterSync() }
+        }
+    }
+
+    fun refreshAfterSync() {
+        val uid = userIdFlow.value
+        if (uid == -1) return
+        clearCategoryCache()
+        categorySeriesCache.clear()
+        _uiState.update {
+            it.copy(categorySeriesMap = emptyMap(), searchMatchedCategories = emptyList(), searchResultSeries = emptyMap())
+        }
+        fetchTvShowCategories()
+        getFavorites()
+        fetchRecentlyViewedTvShows()
+        viewModelScope.launch { _refreshPagingEvent.emit(Unit) }
     }
 
     private fun loadDefaultCategory() {

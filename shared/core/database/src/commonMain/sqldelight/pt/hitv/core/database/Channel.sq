@@ -13,7 +13,9 @@ CREATE TABLE Channel (
     lastUpdated INTEGER NOT NULL DEFAULT 0,
     lastSeen INTEGER NOT NULL DEFAULT 0,
     contentHash TEXT,
-    syncVersion INTEGER NOT NULL DEFAULT 1
+    syncVersion INTEGER NOT NULL DEFAULT 1,
+    tvArchive INTEGER NOT NULL DEFAULT 0,
+    tvArchiveDuration INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX channel_unique ON Channel(name, streamIcon, categoryCreatorId, userId);
@@ -35,6 +37,14 @@ SELECT * FROM Channel WHERE userId = ? AND categoryCreatorId = ? ORDER BY name A
 -- Get favorite channels paged
 selectFavoritesPaged:
 SELECT * FROM Channel WHERE userId = ? AND isFavorite = 1 ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Get catch-up enabled channels paged
+selectCatchUpPaged:
+SELECT * FROM Channel WHERE userId = ? AND tvArchive = 1 ORDER BY name ASC LIMIT ? OFFSET ?;
+
+-- Count catch-up channels
+countCatchUpByUserId:
+SELECT COUNT(*) FROM Channel WHERE userId = ? AND tvArchive = 1;
 
 -- Get recently viewed channels
 selectRecentlyViewed:
@@ -89,13 +99,13 @@ SELECT * FROM Channel WHERE userId = ? AND categoryCreatorId = ? ORDER BY name A
 
 -- Insert or replace a channel
 insertOrReplace:
-INSERT OR REPLACE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion, tvArchive, tvArchiveDuration)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Insert or ignore a channel (returns rowid)
 insertOrIgnore:
-INSERT OR IGNORE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR IGNORE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion, tvArchive, tvArchiveDuration)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Update favorite status
 updateFavorite:
@@ -107,7 +117,7 @@ UPDATE Channel SET lastViewedTimestamp = ? WHERE name = ? AND userId = ? AND cat
 
 -- Update channel (full update by id)
 updateById:
-UPDATE Channel SET name = ?, streamUrl = ?, streamIcon = ?, epgChannelId = ?, categoryCreatorId = ?, isFavorite = ?, licenseKey = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?
+UPDATE Channel SET name = ?, streamUrl = ?, streamIcon = ?, epgChannelId = ?, categoryCreatorId = ?, isFavorite = ?, licenseKey = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?, tvArchive = ?, tvArchiveDuration = ?
 WHERE channelId = ?;
 
 -- Mark channels as seen

@@ -25,7 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.common.analytics.AnalyticsHelper
 import pt.hitv.core.designsystem.theme.getThemeColors
@@ -61,9 +61,9 @@ fun SeriesInfoContent(
     onPlayTrailer: (youtubeUrl: String) -> Unit
 ) {
     // Observe data from unified state
-    val seriesUiState by seriesViewModel.uiState.collectAsStateWithLifecycle()
+    val seriesUiState by seriesViewModel.uiState.collectAsState()
     val (loadedSeriesId, seasonsMap) = seriesUiState.seasonEpisodeData
-    val seriesInfo by seriesInfoViewModel.seriesInfo.collectAsStateWithLifecycle()
+    val seriesInfo by seriesInfoViewModel.seriesInfo.collectAsState()
 
     // Observe favorite status
     val isFavorite by seriesInfoViewModel.isFavorite.collectAsState()

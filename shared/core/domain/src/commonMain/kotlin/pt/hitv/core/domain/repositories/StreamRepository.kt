@@ -58,6 +58,7 @@ interface StreamRepository {
     // --- New Count Methods ---
     suspend fun getTotalChannelCount(): Int
     suspend fun getCategoryChannelCount(categoryId: String): Int
+    suspend fun getCatchUpChannelCount(): Int
     // New function to get all channel categories from local database
     fun getAllChannelCategories(userId: Int): Flow<List<Category>>
 

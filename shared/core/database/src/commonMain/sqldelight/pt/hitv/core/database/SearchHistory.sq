@@ -1,0 +1,42 @@
+-- Search history per-user (Channels / Movies / Series search)
+CREATE TABLE SearchHistory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    query TEXT NOT NULL,
+    kind TEXT NOT NULL,           -- 'channel' | 'movie' | 'series'
+    timestamp INTEGER NOT NULL
+);
+
+CREATE INDEX search_history_user_kind ON SearchHistory(userId, kind, timestamp DESC);
+
+-- Queries
+
+selectRecentByUserAndKind:
+SELECT * FROM SearchHistory
+WHERE userId = ? AND kind = ?
+ORDER BY timestamp DESC
+LIMIT ?;
+
+-- Insert (upsert by query+kind+userId to avoid duplicates)
+insertOrReplace:
+INSERT OR REPLACE INTO SearchHistory(id, userId, query, kind, timestamp)
+VALUES (
+    (SELECT id FROM SearchHistory WHERE userId = :userId AND kind = :kind AND LOWER(query) = LOWER(:query) LIMIT 1),
+    :userId, :query, :kind, :timestamp
+);
+
+deleteById:
+DELETE FROM SearchHistory WHERE id = ?;
+
+deleteAllByUserAndKind:
+DELETE FROM SearchHistory WHERE userId = ? AND kind = ?;
+
+-- Trim: keep N most-recent per (userId, kind); delete the rest
+trimKeepingNewest:
+DELETE FROM SearchHistory
+WHERE userId = ? AND kind = ? AND id NOT IN (
+    SELECT id FROM SearchHistory
+    WHERE userId = ? AND kind = ?
+    ORDER BY timestamp DESC
+    LIMIT ?
+);

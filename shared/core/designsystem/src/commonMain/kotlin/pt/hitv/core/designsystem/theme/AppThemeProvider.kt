@@ -13,16 +13,18 @@ fun AppThemeProvider(
 ) {
     val themeManager: ThemeManager = koinInject()
 
-    // Read theme SYNCHRONOUSLY on first composition to avoid flashing default theme
-    var currentTheme by remember { mutableStateOf(themeManager.getCurrentTheme()) }
+    // Observe the ThemeManager StateFlow for instant hot-swap when the user picks
+    // a theme in ThemeStudioScreen. Falls back to a 1s reconciliation loop to catch
+    // any out-of-band writes to the underlying preference.
+    val currentTheme by themeManager.currentThemeFlow.collectAsState()
 
-    // Continue to observe changes
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
-            val newTheme = themeManager.getCurrentTheme()
-            if (newTheme != currentTheme) {
-                currentTheme = newTheme
+            val persisted = themeManager.getCurrentTheme()
+            if (persisted != themeManager.currentThemeFlow.value) {
+                // Reconcile if the preference was written without going through setTheme.
+                themeManager.selectThemeUngated(persisted)
             }
         }
     }
@@ -59,18 +61,6 @@ fun AppThemeProvider(
 @Composable
 fun getThemeColors(): ThemeManager.AppTheme {
     val themeManager: ThemeManager = koinInject()
-
-    var currentTheme by remember { mutableStateOf(themeManager.getCurrentTheme()) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(500)
-            val newTheme = themeManager.getCurrentTheme()
-            if (newTheme != currentTheme) {
-                currentTheme = newTheme
-            }
-        }
-    }
-
+    val currentTheme by themeManager.currentThemeFlow.collectAsState()
     return currentTheme
 }

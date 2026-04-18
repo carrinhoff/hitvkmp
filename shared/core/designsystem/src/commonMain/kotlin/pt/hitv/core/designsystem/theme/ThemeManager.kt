@@ -1,6 +1,9 @@
 package pt.hitv.core.designsystem.theme
 
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.common.constants.BillingConstants
 
@@ -23,6 +26,12 @@ open class ThemeManager(
     // Theme change listeners
     private val themeChangeListeners = mutableListOf<(AppTheme) -> Unit>()
 
+    // Reactive StateFlow for instant hot-swap in AppThemeProvider (no polling).
+    private val _currentThemeFlow: MutableStateFlow<AppTheme> by lazy {
+        MutableStateFlow(getCurrentTheme())
+    }
+    val currentThemeFlow: StateFlow<AppTheme> get() = _currentThemeFlow.asStateFlow()
+
     fun addThemeChangeListener(listener: (AppTheme) -> Unit) {
         themeChangeListeners.add(listener)
     }
@@ -32,6 +41,7 @@ open class ThemeManager(
     }
 
     private fun notifyThemeChanged(theme: AppTheme) {
+        _currentThemeFlow.value = theme
         themeChangeListeners.forEach { it(theme) }
     }
 
@@ -153,6 +163,16 @@ open class ThemeManager(
         preferencesHelper.setStoredTag(THEME_PREFERENCE_KEY, theme.themeName)
         notifyThemeChanged(theme)
         return true
+    }
+
+    /**
+     * Ungated select path for the Theme Studio — persists the chosen theme and notifies
+     * listeners without consulting the premium gate. Used by [ThemeStudioScreen] /
+     * [ThemeSettingsViewModel] per the plan's "no IAP" scope decision.
+     */
+    fun selectThemeUngated(theme: AppTheme) {
+        preferencesHelper.setStoredTag(THEME_PREFERENCE_KEY, theme.themeName)
+        notifyThemeChanged(theme)
     }
 
     fun hasPremiumThemes(): Boolean {

@@ -14,6 +14,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.findLibrary("zxing-core").get())
             implementation(libs.findLibrary("androidx-security-crypto").get())
+            implementation(libs.findLibrary("androidx-appcompat").get())
         }
     }
 }
