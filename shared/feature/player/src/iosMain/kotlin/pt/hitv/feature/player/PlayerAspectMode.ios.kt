@@ -15,7 +15,11 @@ import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
  * - Fill → stretch to fill: no aspect preservation → `resize`.
  * - Zoom → crop: scale to fill, preserve aspect ratio → `resizeAspectFill`.
  */
-internal fun PlayerAspectMode.toVideoGravity(): String = when (this) {
+// Kotlin/Native's AVFoundation binding exposes these constants as `String?` (nullable
+// — they're `NSString *` in ObjC with no nullability annotation). Match that here so
+// callers can pass the result straight to `AVPlayerLayer.videoGravity` /
+// `AVPlayerViewController.videoGravity`, both of which are also `String?`.
+internal fun PlayerAspectMode.toVideoGravity(): String? = when (this) {
     PlayerAspectMode.Fit -> AVLayerVideoGravityResizeAspect
     PlayerAspectMode.Fill -> AVLayerVideoGravityResize
     PlayerAspectMode.Zoom -> AVLayerVideoGravityResizeAspectFill
