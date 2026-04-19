@@ -24,7 +24,7 @@ struct iOSApp: App {
             // Kotlin's `(Boolean) -> Unit` surfaces in Swift as `(KotlinBoolean?) -> Void`
             // (primitive boxing through ObjC). Unwrap with `?.boolValue ?? false`.
             SyncBridgeKt.runEpgSync { success in
-                task.setTaskCompleted(success: success?.boolValue ?? false)
+                task.setTaskCompleted(success: success.boolValue)
             }
             iOSApp.scheduleRefresh(identifier: iOSApp.taskIdEpg, in: iOSApp.epgIntervalSeconds)
         }
@@ -34,7 +34,7 @@ struct iOSApp: App {
             using: nil
         ) { task in
             SyncBridgeKt.runContentSync { success in
-                task.setTaskCompleted(success: success?.boolValue ?? false)
+                task.setTaskCompleted(success: success.boolValue)
             }
             iOSApp.scheduleRefresh(identifier: iOSApp.taskIdContent, in: iOSApp.contentIntervalSeconds)
         }
