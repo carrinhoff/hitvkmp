@@ -41,9 +41,24 @@ kotlin {
         }
         // SyncBridge.kt in iosMain references org.koin.core.context.GlobalContext.
         // The koin-core dep is implementation-scoped on upstream modules so doesn't
-        // propagate transitively — declare directly so the iOS compile classpath
-        // sees it.
+        // propagate transitively, AND `id("hitv.koin")` + `iosMain.dependencies {}`
+        // both proved insufficient across CI runs. Declaring on each per-target
+        // main source set directly, plus on commonMain as a belt-and-braces, since
+        // SOMETHING about the source-set hierarchy on this module isn't routing
+        // dependencies the way it should.
+        commonMain.dependencies {
+            implementation(libs.findLibrary("koin-core").get())
+        }
         iosMain.dependencies {
+            implementation(libs.findLibrary("koin-core").get())
+        }
+        getByName("iosArm64Main").dependencies {
+            implementation(libs.findLibrary("koin-core").get())
+        }
+        getByName("iosX64Main").dependencies {
+            implementation(libs.findLibrary("koin-core").get())
+        }
+        getByName("iosSimulatorArm64Main").dependencies {
             implementation(libs.findLibrary("koin-core").get())
         }
     }
