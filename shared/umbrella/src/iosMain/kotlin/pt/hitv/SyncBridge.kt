@@ -4,7 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.koin.core.context.GlobalContext
+import org.koin.mp.KoinPlatform
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.sync.BackgroundSyncManager
 import pt.hitv.core.sync.SyncManager
@@ -31,8 +31,8 @@ private val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 fun runEpgSync(onComplete: (Boolean) -> Unit) {
     bridgeScope.launch {
         val success = try {
-            val syncManager = GlobalContext.get().get<SyncManager>()
-            val preferencesHelper = GlobalContext.get().get<PreferencesHelper>()
+            val syncManager = KoinPlatform.getKoin().get<SyncManager>()
+            val preferencesHelper = KoinPlatform.getKoin().get<PreferencesHelper>()
             val userId = preferencesHelper.getUserId()
             val result = syncManager.syncEpg(userId)
             reportStatus(TASK_EPG, result.isSuccess)
@@ -48,8 +48,8 @@ fun runEpgSync(onComplete: (Boolean) -> Unit) {
 fun runContentSync(onComplete: (Boolean) -> Unit) {
     bridgeScope.launch {
         val success = try {
-            val syncManager = GlobalContext.get().get<SyncManager>()
-            val preferencesHelper = GlobalContext.get().get<PreferencesHelper>()
+            val syncManager = KoinPlatform.getKoin().get<SyncManager>()
+            val preferencesHelper = KoinPlatform.getKoin().get<PreferencesHelper>()
             val userId = preferencesHelper.getUserId()
             val result = if (syncManager is SyncManagerImpl) {
                 syncManager.performFullSync(userId) { _, _, _ -> }
@@ -68,7 +68,7 @@ fun runContentSync(onComplete: (Boolean) -> Unit) {
 
 private fun reportStatus(taskId: String, success: Boolean) {
     try {
-        val manager = GlobalContext.get().get<BackgroundSyncManager>()
+        val manager = KoinPlatform.getKoin().get<BackgroundSyncManager>()
         manager.reportStatus(
             taskId,
             if (success) SyncTaskStatus.Succeeded else SyncTaskStatus.Failed
