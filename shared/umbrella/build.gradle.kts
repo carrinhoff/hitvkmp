@@ -17,13 +17,6 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // koin-core declared explicitly here even though `id("hitv.koin")` should
-            // also add it via the convention plugin — the previous CI runs failed with
-            // 'Unresolved reference GlobalContext' for code in this module, suggesting
-            // the convention plugin's commonMain.dependencies block isn't taking effect
-            // for the umbrella module. Direct declaration unblocks the build.
-            implementation(libs.findLibrary("koin-core").get())
-
             // Re-export core modules
             api(project(":shared:core:model"))
             api(project(":shared:core:common"))
@@ -45,6 +38,13 @@ kotlin {
             api(project(":shared:feature:settings"))
             // EPG
             api(project(":shared:epg"))
+        }
+        // SyncBridge.kt in iosMain references org.koin.core.context.GlobalContext.
+        // The koin-core dep is implementation-scoped on upstream modules so doesn't
+        // propagate transitively — declare directly so the iOS compile classpath
+        // sees it.
+        iosMain.dependencies {
+            implementation(libs.findLibrary("koin-core").get())
         }
     }
 }

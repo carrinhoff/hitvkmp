@@ -86,12 +86,7 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
 
       - name: Build Kotlin iOS framework
-        # --no-build-cache --rerun-tasks: forces a clean rebuild of all upstream
-        # iOS compile tasks. Suspected cache poisoning across previous runs:
-        # :shared:core:sync:compileKotlinIosArm64 was consistently FROM-CACHE
-        # while umbrella failed with 'Unresolved reference' for symbols that
-        # exist in current source but may not have been in the cached KLIB.
-        run: ./gradlew :shared:umbrella:linkReleaseFrameworkIosArm64 --no-build-cache --rerun-tasks
+        run: ./gradlew :shared:umbrella:linkReleaseFrameworkIosArm64
 
       - name: Build & archive iOS app
         run: |
