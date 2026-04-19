@@ -517,8 +517,29 @@ class StreamRepositoryImpl(
     }
 
     override suspend fun fetchCurrentEpg(channel: Channel, currentTimeInMillis: Long): ChannelEpgInfo? {
-        // TODO: Implement EPG current programme query
-        return null
+        val epgId = channel.epgChannelId?.takeIf { it.isNotBlank() } ?: return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val row = programmeQueries.selectChannelWithProgrammeDetails(
+                    epgId,
+                    userId.toLong(),
+                    currentTimeInMillis
+                ).executeAsOneOrNull() ?: return@withContext null
+                val epgChannel = epgChannelQueries.selectByChannelIdAndUserId(epgId, userId.toLong())
+                    .executeAsOneOrNull()
+                ChannelEpgInfo(
+                    channelId = epgId,
+                    channelName = epgChannel?.display_name ?: channel.name,
+                    programmeTitle = row.title,
+                    programmeDescription = row.desc,
+                    startTime = row.start_time,
+                    endTime = row.end_time,
+                    logo = epgChannel?.logo
+                )
+            } catch (_: Throwable) {
+                null
+            }
+        }
     }
 
     override fun getAllChannelCategories(userId: Int): Flow<List<Category>> {

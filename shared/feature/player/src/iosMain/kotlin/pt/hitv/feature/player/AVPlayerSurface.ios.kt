@@ -4,24 +4,29 @@ package pt.hitv.feature.player
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.interop.UIKitView
+import androidx.compose.ui.viewinterop.UIKitViewController
 import platform.AVFoundation.AVPlayer
-import platform.AVFoundation.AVPlayerLayer
-import platform.CoreGraphics.CGRectMake
-import platform.QuartzCore.CALayer
-import platform.UIKit.UIView
+import platform.AVKit.AVPlayerViewController
 
 /**
- * Compose surface that hosts an [AVPlayerLayer] inside a [UIView] via [UIKitView].
+ * Compose surface that renders an [AVPlayer] inside an [AVPlayerViewController]
+ * mounted via [UIKitViewController]. Shared between the channel / movie / series
+ * iOS hosts as the slot they pass to `playerViewFactory: (Modifier) -> Unit` on
+ * the shared overlay screens.
  *
- * Shared between the channel / movie / series iOS player hosts — they all need the
- * same "render this AVPlayer with the current aspect mode" surface as the slot
- * supplied to the shared `playerViewFactory: @Composable (Modifier) -> Unit` parameter
- * in `ChannelPlayerScreen` / `MoviePlayerScreen` / `SeriesPlayerScreen`.
+ * Earlier this was a raw UIView + AVPlayerLayer wrapped in [UIKitView]. That
+ * surfaced as a "tiny video in the top-left corner" bug at full screen — CALayer
+ * doesn't auto-resize when its host UIView's bounds change, and Compose's `update`
+ * lambda only fires on recomposition (not layout). AVPlayerViewController owns
+ * its own auto-layout so the video always fills the host bounds.
  *
- * The `update` lambda re-applies `videoGravity` and resizes the layer to match the
- * view bounds whenever the surface recomposes (aspect-mode change, layout change).
+ * `showsPlaybackControls = false`: the channel player overlay supplies its own
+ * Compose controls (top bar, sidebar, sleep timer). For the movie / series
+ * players, the existing [PlayerHost] surface keeps the native controls — this
+ * helper is for the no-native-chrome case.
  */
 @Composable
 internal fun AVPlayerSurface(
@@ -29,24 +34,19 @@ internal fun AVPlayerSurface(
     aspectMode: PlayerAspectMode,
     modifier: Modifier = Modifier
 ) {
-    UIKitView(
-        factory = {
-            val container = UIView(frame = CGRectMake(0.0, 0.0, 100.0, 100.0))
-            val layer = AVPlayerLayer.playerLayerWithPlayer(player)
-            layer.videoGravity = aspectMode.toVideoGravity()
-            layer.frame = container.bounds
-            container.layer.addSublayer(layer)
-            container
-        },
-        modifier = modifier.fillMaxSize(),
-        update = { view ->
-            val sublayers = view.layer.sublayers
-            if (sublayers != null) {
-                for (sublayer in sublayers) {
-                    (sublayer as? CALayer)?.frame = view.bounds
-                }
-                (sublayers.firstOrNull() as? AVPlayerLayer)?.videoGravity = aspectMode.toVideoGravity()
-            }
+    val vc = remember(player) {
+        AVPlayerViewController().apply {
+            this.player = player
+            showsPlaybackControls = false
+            videoGravity = aspectMode.toVideoGravity()
         }
+    }
+    // Re-apply gravity on aspect-mode change (recomposition).
+    LaunchedEffect(aspectMode) {
+        vc.videoGravity = aspectMode.toVideoGravity()
+    }
+    UIKitViewController(
+        modifier = modifier.fillMaxSize(),
+        factory = { vc }
     )
 }
