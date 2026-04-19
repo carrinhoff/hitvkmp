@@ -39,14 +39,9 @@ kotlin {
             // EPG
             api(project(":shared:epg"))
         }
-        // SyncBridge.kt in iosMain consumes Koin's GlobalContext + the sync/common
-        // projects directly — declare them explicitly so the iOS compile classpath
-        // picks them up regardless of how the default-hierarchy inheritance from
-        // commonMain composes with the convention plugins.
-        iosMain.dependencies {
-            implementation(libs.findLibrary("koin-core").get())
-            implementation(project(":shared:core:common"))
-            implementation(project(":shared:core:sync"))
-        }
+        // SyncBridge.kt is now in commonMain (it uses no iOS-specific APIs — just
+        // kotlinx.coroutines + Koin + project deps). Top-level commonMain functions
+        // are still exported to Swift via the iOS framework, so the Swift call site
+        // (`SyncBridgeKt.runEpgSync(onComplete:)`) works unchanged.
     }
 }
