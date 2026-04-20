@@ -223,11 +223,14 @@ private fun ChannelPlayerHostContent(
     }
 
     // Catch-up playback speed → AVPlayer.rate. Only applied while catch-up is
-    // active; the live stream always plays at 1x.
+    // active; the live stream always plays at 1x. Property-setter syntax —
+    // `avPlayer.setRate(...)` does not exist as a standalone in Kotlin/Native
+    // cinterop (the multi-arg `setRate(_:time:atHostTime:)` does, but the
+    // simple form is the property setter).
     val catchUpActive = uiState.catchUpState.isActive
     val playbackSpeed = uiState.catchUpState.playbackSpeed
     LaunchedEffect(catchUpActive, playbackSpeed) {
-        if (catchUpActive) avPlayer.setRate(playbackSpeed) else avPlayer.setRate(1f)
+        avPlayer.rate = if (catchUpActive) playbackSpeed else 1f
     }
 
     ChannelPlayerScreen(
