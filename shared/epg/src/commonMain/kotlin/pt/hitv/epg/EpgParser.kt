@@ -26,14 +26,22 @@ import pt.hitv.epg.domain.EPGEvent
  */
 object EpgParser {
 
+    // Capture the opening tag's attribute blob + body. Attributes are then
+    // extracted by name below, so attribute order doesn't matter — real-world
+    // XMLTV feeds (Xtream, tvheadend, Kodi plugins) disagree on the order.
     private val CHANNEL_REGEX = Regex(
-        """<channel\s+id="([^"]*)">([\s\S]*?)</channel>"""
+        """<channel\s+([^>]*?)>([\s\S]*?)</channel>"""
     )
-    private val DISPLAY_NAME_REGEX = Regex("""<display-name[^>]*>(.*?)</display-name>""")
-    private val ICON_REGEX = Regex("""<icon\s+src="([^"]*)"[^/]*/?>""")
     private val PROGRAMME_REGEX = Regex(
-        """<programme\s+start="([^"]*)"\s+stop="([^"]*)"\s+channel="([^"]*)"[^>]*>([\s\S]*?)</programme>"""
+        """<programme\s+([^>]*?)>([\s\S]*?)</programme>"""
     )
+    private val ATTR_ID = Regex("""\bid\s*=\s*["']([^"']*)["']""")
+    private val ATTR_START = Regex("""\bstart\s*=\s*["']([^"']*)["']""")
+    private val ATTR_STOP = Regex("""\bstop\s*=\s*["']([^"']*)["']""")
+    private val ATTR_CHANNEL = Regex("""\bchannel\s*=\s*["']([^"']*)["']""")
+    private val ATTR_SRC = Regex("""\bsrc\s*=\s*["']([^"']*)["']""")
+    private val DISPLAY_NAME_REGEX = Regex("""<display-name[^>]*>(.*?)</display-name>""")
+    private val ICON_REGEX = Regex("""<icon\s+([^>]*?)/?>""")
     private val TITLE_REGEX = Regex("""<title[^>]*>(.*?)</title>""")
     private val DESC_REGEX = Regex("""<desc[^>]*>(.*?)</desc>""")
 
@@ -56,11 +64,13 @@ object EpgParser {
      * Parse channel elements from XMLTV content.
      */
     fun parseChannels(xmlContent: String): List<EPGChannel> {
-        return CHANNEL_REGEX.findAll(xmlContent).map { match ->
-            val channelId = match.groupValues[1]
+        return CHANNEL_REGEX.findAll(xmlContent).mapNotNull { match ->
+            val attrs = match.groupValues[1]
             val body = match.groupValues[2]
+            val channelId = ATTR_ID.find(attrs)?.groupValues?.get(1) ?: return@mapNotNull null
             val displayName = DISPLAY_NAME_REGEX.find(body)?.groupValues?.get(1)?.decodeXmlEntities() ?: ""
-            val iconUrl = ICON_REGEX.find(body)?.groupValues?.get(1) ?: ""
+            val iconAttrs = ICON_REGEX.find(body)?.groupValues?.get(1) ?: ""
+            val iconUrl = ATTR_SRC.find(iconAttrs)?.groupValues?.get(1) ?: ""
 
             EPGChannel(
                 channelID = channelId,
@@ -78,14 +88,17 @@ object EpgParser {
         var idCounter = 0
 
         PROGRAMME_REGEX.findAll(xmlContent).forEach { match ->
-            val startStr = match.groupValues[1]
-            val stopStr = match.groupValues[2]
-            val channelId = match.groupValues[3]
-            val body = match.groupValues[4]
+            val attrs = match.groupValues[1]
+            val body = match.groupValues[2]
+
+            val startStr = ATTR_START.find(attrs)?.groupValues?.get(1) ?: return@forEach
+            val stopStr = ATTR_STOP.find(attrs)?.groupValues?.get(1) ?: return@forEach
+            val channelId = ATTR_CHANNEL.find(attrs)?.groupValues?.get(1) ?: return@forEach
 
             val title = TITLE_REGEX.find(body)?.groupValues?.get(1)?.decodeXmlEntities() ?: ""
             val desc = DESC_REGEX.find(body)?.groupValues?.get(1)?.decodeXmlEntities() ?: ""
-            val iconUrl = ICON_REGEX.find(body)?.groupValues?.get(1) ?: ""
+            val iconAttrs = ICON_REGEX.find(body)?.groupValues?.get(1) ?: ""
+            val iconUrl = ATTR_SRC.find(iconAttrs)?.groupValues?.get(1) ?: ""
 
             val startMillis = parseXmltvDate(startStr)
             val stopMillis = parseXmltvDate(stopStr)
