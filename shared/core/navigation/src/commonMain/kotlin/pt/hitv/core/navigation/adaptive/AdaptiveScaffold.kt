@@ -123,10 +123,15 @@ fun AdaptiveScaffold(
         // Track sync completion to force-recreate tab content
         var syncVersion by remember { mutableStateOf(0) }
 
-        // Check if initial sync is needed — set state IMMEDIATELY to prevent blank flash
+        // Check if initial sync is needed — set state IMMEDIATELY to prevent blank flash.
+        // We trigger the sync if EITHER the data sync (channels/movies/series) OR the
+        // EPG sync is incomplete. EPG has its own flag so a transient EPG failure on the
+        // first run still gets retried on the next launch, instead of being permanently
+        // blocked by `initial_sync_complete=true`.
         val userId = remember { preferencesHelper.getUserId() }
         val initialSyncDone = remember { preferencesHelper.getStoredBoolean("initial_sync_complete") }
-        val needsSync = userId != -1 && !initialSyncDone
+        val epgSyncDone = remember { preferencesHelper.getStoredBoolean("epg_sync_complete") }
+        val needsSync = userId != -1 && (!initialSyncDone || !epgSyncDone)
 
         // Kick off the post-login sync via the singleton manager. The job
         // lives in a scope owned by SyncStateManager so it SURVIVES Activity

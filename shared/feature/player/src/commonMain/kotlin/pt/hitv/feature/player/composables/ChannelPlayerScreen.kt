@@ -301,9 +301,13 @@ fun ChannelPlayerScreen(
                             onBrowseArchive = { showArchiveSheet = true; controlsInteractionCounter++ },
                         )
                     }
-                    catchUp.channelHasCatchUp && uiState.currentChannelEpg != null -> {
+                    // Catch-up channel overlay — shows whenever the channel supports
+                    // catch-up. EPG may be null (sync still in progress / feed has no
+                    // current programme) — the overlay handles that internally and just
+                    // surfaces the "Browse Archive" button when pastPrograms is loaded.
+                    catchUp.channelHasCatchUp -> {
                         CatchUpEpgOverlayMobile(
-                            epgInfo = uiState.currentChannelEpg!!,
+                            epgInfo = uiState.currentChannelEpg,
                             pastPrograms = catchUp.pastPrograms,
                             onRewindToStart = { viewModel.rewindToStart(); controlsInteractionCounter++ },
                             onBrowseArchive = { showArchiveSheet = true; controlsInteractionCounter++ },

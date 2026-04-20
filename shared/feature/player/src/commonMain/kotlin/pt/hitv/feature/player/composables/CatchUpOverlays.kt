@@ -82,15 +82,23 @@ import pt.hitv.feature.player.CatchUpState
  * Overlay shown at the bottom of the player while streaming live on a
  * catch-up-enabled channel. "From start" jumps to the beginning of the
  * currently-airing programme; "Browse Archive" opens the full day browser.
+ *
+ * `epgInfo` is nullable on purpose: when EPG sync hasn't completed yet (or
+ * the feed has no current programme for this channel), we still want to
+ * render the "Browse Archive" affordance so the user has a way into the
+ * catch-up flow. The "From start" button only shows when we know a current
+ * programme's bounds.
  */
 @Composable
 fun CatchUpEpgOverlayMobile(
-    epgInfo: ChannelEpgInfo,
+    epgInfo: ChannelEpgInfo?,
     pastPrograms: List<ChannelEpgInfo>,
     onRewindToStart: () -> Unit,
     onBrowseArchive: () -> Unit = {},
 ) {
     val themeColors = getThemeColors()
+    // Nothing useful to show — no current programme AND no archive.
+    if (epgInfo == null && pastPrograms.isEmpty()) return
 
     Card(
         modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
@@ -100,58 +108,62 @@ fun CatchUpEpgOverlayMobile(
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = epgInfo.programmeTitle.orEmpty(),
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val startStr = epgInfo.startTime?.let { formatTimeHHmm(it) }.orEmpty()
-                    val endStr = epgInfo.endTime?.let { formatTimeHHmm(it) }.orEmpty()
-                    if (startStr.isNotEmpty()) {
+            if (epgInfo != null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Now \u00B7 $startStr \u2013 $endStr",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp,
+                            text = epgInfo.programmeTitle.orEmpty(),
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
+                        val startStr = epgInfo.startTime?.let { formatTimeHHmm(it) }.orEmpty()
+                        val endStr = epgInfo.endTime?.let { formatTimeHHmm(it) }.orEmpty()
+                        if (startStr.isNotEmpty()) {
+                            Text(
+                                text = "Now \u00B7 $startStr \u2013 $endStr",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    if (epgInfo.startTime != null && epgInfo.endTime != null) {
+                        Button(
+                            onClick = onRewindToStart,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColors.primaryColor,
+                                contentColor = themeColors.textColor,
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp),
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Rewind to start", modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("From start", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Button(
-                    onClick = onRewindToStart,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = themeColors.primaryColor,
-                        contentColor = themeColors.textColor,
-                    ),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.height(32.dp),
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Rewind to start", modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("From start", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                val progress = epgInfo.calculateProgress(Clock.System.now().toEpochMilliseconds())
+                if (progress > 0f) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                        color = themeColors.primaryColor,
+                        trackColor = Color.White.copy(alpha = 0.15f),
+                    )
                 }
             }
 
-            val progress = epgInfo.calculateProgress(Clock.System.now().toEpochMilliseconds())
-            if (progress > 0f) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
-                    color = themeColors.primaryColor,
-                    trackColor = Color.White.copy(alpha = 0.15f),
-                )
-            }
-
             if (pastPrograms.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                if (epgInfo != null) Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onBrowseArchive,
                     colors = ButtonDefaults.buttonColors(

@@ -91,7 +91,34 @@ class LivePlayerViewModel(
     }
 
     fun getChannel(name: String) {
-        viewModelScope.launch { try { _uiState.update { it.copy(fetchedChannel = repository.getChannel(name)) } } catch (_: Exception) { _uiState.update { it.copy(fetchedChannel = null) } } }
+        viewModelScope.launch {
+            try {
+                val ch = repository.getChannel(name)
+                // Mirror the original LivePlayerViewModel.getChannel(): set the resolved
+                // channel as `currentChannelObject` (so catch-up actions like rewindToStart
+                // can find it) and seed `channelHasCatchUp` from tvArchive. This path
+                // runs on cold-launch (initFromArgs -> getChannel), bypassing
+                // onChannelSelected.
+                val hasCatchUp = (ch?.tvArchive ?: 0) > 0
+                _uiState.update {
+                    it.copy(
+                        fetchedChannel = ch,
+                        currentChannelObject = ch ?: it.currentChannelObject,
+                        catchUpState = it.catchUpState.copy(channelHasCatchUp = hasCatchUp),
+                    )
+                }
+                if (ch != null && hasCatchUp) {
+                    loadPastPrograms(ch)
+                    // Pre-fetch the server timezone so the XC catch-up URL builder has
+                    // it cached the moment the user taps "From start" / a past programme.
+                    viewModelScope.launch(Dispatchers.IO) {
+                        repository.fetchAndCacheServerTimezone()
+                    }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(fetchedChannel = null) }
+            }
+        }
     }
 
     fun fetchChannelCategories() {

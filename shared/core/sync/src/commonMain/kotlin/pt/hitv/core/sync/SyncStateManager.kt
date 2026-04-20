@@ -120,21 +120,36 @@ class SyncStateManager {
     ) {
         if (runningJob?.isActive == true) return
         runningJob = scope.launch {
+            val needsDataSync = !preferencesHelper.getStoredBoolean("initial_sync_complete")
+            val needsEpgSync = !preferencesHelper.getStoredBoolean("epg_sync_complete")
+
             startDataSync()
             try {
-                (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
-                    updateProgress(p, s, m)
+                if (needsDataSync) {
+                    (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
+                        updateProgress(p, s, m)
+                    }
+                    // Tabs become usable as soon as channels/movies/series are in.
+                    // We deliberately don't gate UI on EPG — that flag (`epg_sync_complete`)
+                    // is independent so a transient EPG failure doesn't block the rest of
+                    // the app, but also doesn't prevent the next launch from retrying EPG.
+                    preferencesHelper.setStoredBoolean("initial_sync_complete", true)
                 }
-                preferencesHelper.setStoredBoolean("initial_sync_complete", true)
                 onSyncComplete()
 
-                startEpgSync()
-                try {
-                    val epgResult = syncManager.syncEpg(userId)
-                    if (epgResult.isSuccess) onEpgSyncComplete()
-                    else onEpgSyncFailed(epgResult.errorMessage)
-                } catch (e: Exception) {
-                    onEpgSyncFailed(e.message)
+                if (needsEpgSync) {
+                    startEpgSync()
+                    try {
+                        val epgResult = syncManager.syncEpg(userId)
+                        if (epgResult.isSuccess) {
+                            preferencesHelper.setStoredBoolean("epg_sync_complete", true)
+                            onEpgSyncComplete()
+                        } else {
+                            onEpgSyncFailed(epgResult.errorMessage)
+                        }
+                    } catch (e: Exception) {
+                        onEpgSyncFailed(e.message)
+                    }
                 }
             } catch (e: Exception) {
                 onSyncFailed(e.message)
