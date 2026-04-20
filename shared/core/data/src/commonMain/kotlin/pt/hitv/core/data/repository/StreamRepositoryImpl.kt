@@ -91,7 +91,7 @@ class StreamRepositoryImpl(
                             name = liveStream.name,
                             streamUrl = mainUrl + liveStream.streamId,
                             streamIcon = liveStream.streamIcon,
-                            epgChannelId = liveStream.epgChannelId,
+                            epgChannelId = liveStream.epgChannelId?.trim()?.lowercase(),
                             categoryCreatorId = liveStream.categoryId.toString(),
                             isFavorite = 0L,
                             licenseKey = null,
@@ -247,7 +247,7 @@ class StreamRepositoryImpl(
                         name = channel.name ?: "",
                         streamUrl = channel.streamUrl ?: "",
                         streamIcon = channel.streamIcon ?: "",
-                        epgChannelId = channel.epgChannelId,
+                        epgChannelId = channel.epgChannelId?.trim()?.lowercase(),
                         categoryCreatorId = catId.toString(),
                         isFavorite = 0L,
                         licenseKey = null,
@@ -517,7 +517,10 @@ class StreamRepositoryImpl(
     }
 
     override suspend fun fetchCurrentEpg(channel: Channel, currentTimeInMillis: Long): ChannelEpgInfo? {
-        val epgId = channel.epgChannelId?.takeIf { it.isNotBlank() } ?: return null
+        // Match the normalization used at EPG insert time (EpgStreamingLoader lowercases/trims
+        // EpgChannel.channel_id and Programme.channel_name). Without this, feeds whose
+        // channel IDs contain uppercase or whitespace never join and the row shows "No EPG".
+        val epgId = channel.epgChannelId?.trim()?.lowercase()?.takeIf { it.isNotBlank() } ?: return null
         return withContext(Dispatchers.IO) {
             try {
                 val row = programmeQueries.selectChannelWithProgrammeDetails(
