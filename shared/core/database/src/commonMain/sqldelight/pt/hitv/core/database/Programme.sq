@@ -40,17 +40,26 @@ INNER JOIN Programme AS pg ON epgc.channel_id = pg.channel_name
 WHERE epgc.display_name = ? AND pg.userId = ?
 AND ? BETWEEN pg.start_time AND pg.end_time;
 
--- Get channel with programme details (title + desc)
+-- Get channel with programme details (title + desc).
 -- LEFT JOIN on Title/Description: XMLTV feeds often omit <desc> (or emit blank)
--- and inserts skip blank values — INNER JOIN would then drop the entire row and
--- we'd render "No EPG" even when the programme and channel both exist.
+-- and inserts skip blank values — INNER JOIN would drop those rows and render
+-- "No EPG" even when the programme + channel both exist.
+-- No AS aliases: SQLDelight's `SELECT *` expansion on mixed INNER/LEFT JOINs
+-- can emit the real table names in the SELECT list while keeping the aliased
+-- FROM, which SQLite then rejects ("no such column: EpgChannel.channel_id").
+-- ORDER BY start_time DESC LIMIT 1: real feeds routinely contain overlapping
+-- programmes at the same wall-clock time (announcement rows, +1 bumpers,
+-- duplicate imports). executeAsOneOrNull throws when >1 row matches; picking
+-- the latest-started row gives the "currently airing" programme.
 selectChannelWithProgrammeDetails:
-SELECT * FROM EpgChannel AS epgc
-INNER JOIN Programme AS pg ON epgc.channel_id = pg.channel_name
-LEFT JOIN Title AS t ON t.programme_id = pg.id
-LEFT JOIN Description AS d ON d.programme_id = pg.id
-WHERE epgc.channel_id = ? AND pg.userId = ?
-AND ? BETWEEN pg.start_time AND pg.end_time;
+SELECT * FROM EpgChannel
+INNER JOIN Programme ON EpgChannel.channel_id = Programme.channel_name
+LEFT JOIN Title ON Title.programme_id = Programme.id
+LEFT JOIN Description ON Description.programme_id = Programme.id
+WHERE EpgChannel.channel_id = ? AND Programme.userId = ?
+AND ? BETWEEN Programme.start_time AND Programme.end_time
+ORDER BY Programme.start_time DESC
+LIMIT 1;
 
 -- Get all channels with their programmes
 selectAllChannelsWithProgrammes:
