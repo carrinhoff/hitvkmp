@@ -102,7 +102,9 @@ class StreamRepositoryImpl(
                             contentHash = null,
                             syncVersion = 1L,
                             tvArchive = liveStream.tvArchive.toLong(),
-                            tvArchiveDuration = liveStream.tvArchiveDuration.toLong()
+                            tvArchiveDuration = liveStream.tvArchiveDuration.toLong(),
+                            catchupType = liveStream.catchupType,
+                            catchupSource = liveStream.catchupSource,
                         )
                     }
                 }
@@ -258,7 +260,9 @@ class StreamRepositoryImpl(
                         contentHash = null,
                         syncVersion = 1L,
                         tvArchive = channel.tvArchive.toLong(),
-                        tvArchiveDuration = channel.tvArchiveDuration.toLong()
+                        tvArchiveDuration = channel.tvArchiveDuration.toLong(),
+                        catchupType = channel.catchupType,
+                        catchupSource = channel.catchupSource,
                     )
                 }
             }
@@ -450,11 +454,6 @@ class StreamRepositoryImpl(
 
         val cleanedChannelIdsSet = uniqueCleanedChannels.map { it.channelID.trim().lowercase() }.toSet()
 
-        println("HITV-EPG insertEpgDB start: parsed channels=$totalChannels, unique=${uniqueCleanedChannels.size}, programmes=$totalProgrammes, userId=$userId")
-        if (uniqueCleanedChannels.isNotEmpty()) {
-            println("HITV-EPG sample channel ids (first 5): ${uniqueCleanedChannels.take(5).map { it.channelID.trim().lowercase() }}")
-        }
-
         if (uniqueCleanedChannels.isNotEmpty()) {
             database.transaction {
                 uniqueCleanedChannels.forEach { epgChannel ->
@@ -470,10 +469,6 @@ class StreamRepositoryImpl(
         onChannelProgress(totalChannels, totalChannels)
 
         var programmesProcessed = 0
-        var programmesInserted = 0
-        var programmesSkippedUnknownChannel = 0
-        var programmesSkippedBadTime = 0
-        var programmesSkippedException = 0
         val batchSize = 500
 
         // Flatten programmes map into a list of (channelId, event) pairs
@@ -485,46 +480,36 @@ class StreamRepositoryImpl(
         for (programmeBatch in programmeBatches) {
             database.transaction {
                 programmeBatch.forEach { (channelId, event) ->
-                    when {
-                        channelId.isEmpty() || !cleanedChannelIdsSet.contains(channelId) -> {
-                            programmesSkippedUnknownChannel++
-                        }
-                        event.start <= 0 || event.end <= 0 -> {
-                            programmesSkippedBadTime++
-                        }
-                        else -> {
-                            try {
-                                programmeQueries.insertProgramme(
-                                    channel_name = channelId,
-                                    start_time = event.start,
-                                    end_time = event.end,
-                                    userId = userId.toLong(),
-                                    imageUrl = event.imageURL.ifBlank { null }
+                    if (channelId.isNotEmpty() && cleanedChannelIdsSet.contains(channelId) &&
+                        event.start > 0 && event.end > 0
+                    ) {
+                        try {
+                            programmeQueries.insertProgramme(
+                                channel_name = channelId,
+                                start_time = event.start,
+                                end_time = event.end,
+                                userId = userId.toLong(),
+                                imageUrl = event.imageURL.ifBlank { null }
+                            )
+                            val programmeId = programmeQueries.lastInsertProgrammeId().executeAsOne().MAX
+
+                            if (event.title.isNotBlank()) {
+                                programmeQueries.insertTitle(
+                                    title = event.title,
+                                    programme_id = programmeId,
+                                    userId = userId.toLong()
                                 )
-                                val programmeId = programmeQueries.lastInsertProgrammeId().executeAsOne().MAX
-
-                                if (event.title.isNotBlank()) {
-                                    programmeQueries.insertTitle(
-                                        title = event.title,
-                                        programme_id = programmeId,
-                                        userId = userId.toLong()
-                                    )
-                                }
-
-                                if (event.description.isNotBlank()) {
-                                    programmeQueries.insertDescription(
-                                        desc = event.description,
-                                        programme_id = programmeId,
-                                        userId = userId.toLong()
-                                    )
-                                }
-                                programmesInserted++
-                            } catch (e: Exception) {
-                                programmesSkippedException++
-                                if (programmesSkippedException <= 3) {
-                                    println("HITV-EPG insert programme failed for '$channelId': ${e.message}")
-                                }
                             }
+
+                            if (event.description.isNotBlank()) {
+                                programmeQueries.insertDescription(
+                                    desc = event.description,
+                                    programme_id = programmeId,
+                                    userId = userId.toLong()
+                                )
+                            }
+                        } catch (_: Exception) {
+                            // Skip problematic programmes
                         }
                     }
                 }
@@ -533,31 +518,20 @@ class StreamRepositoryImpl(
             programmesProcessed += programmeBatch.size
             onProgrammeProgress(programmesProcessed, totalProgrammes)
         }
-        println("HITV-EPG insertEpgDB done: inserted=$programmesInserted, skippedUnknownChannel=$programmesSkippedUnknownChannel, skippedBadTime=$programmesSkippedBadTime, skippedException=$programmesSkippedException")
     }
 
     override suspend fun fetchCurrentEpg(channel: Channel, currentTimeInMillis: Long): ChannelEpgInfo? {
         // Match the normalization used at EPG insert time (EpgStreamingLoader lowercases/trims
         // EpgChannel.channel_id and Programme.channel_name). Without this, feeds whose
         // channel IDs contain uppercase or whitespace never join and the row shows "No EPG".
-        val rawId = channel.epgChannelId
-        val epgId = rawId?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
-        if (epgId == null) {
-            println("HITV-EPG fetchCurrentEpg: skip (null/blank) raw='$rawId' channel='${channel.name}'")
-            return null
-        }
+        val epgId = channel.epgChannelId?.trim()?.lowercase()?.takeIf { it.isNotBlank() } ?: return null
         return withContext(Dispatchers.IO) {
             try {
                 val row = programmeQueries.selectChannelWithProgrammeDetails(
                     epgId,
                     userId.toLong(),
                     currentTimeInMillis
-                ).executeAsOneOrNull()
-                if (row == null) {
-                    println("HITV-EPG fetchCurrentEpg: NO MATCH epgId='$epgId' raw='$rawId' channel='${channel.name}' now=$currentTimeInMillis userId=$userId")
-                    return@withContext null
-                }
-                println("HITV-EPG fetchCurrentEpg: HIT epgId='$epgId' channel='${channel.name}' title='${row.title}'")
+                ).executeAsOneOrNull() ?: return@withContext null
                 val epgChannel = epgChannelQueries.selectByChannelIdAndUserId(epgId, userId.toLong())
                     .executeAsOneOrNull()
                 ChannelEpgInfo(
@@ -569,8 +543,63 @@ class StreamRepositoryImpl(
                     endTime = row.end_time,
                     logo = epgChannel?.logo
                 )
-            } catch (e: Throwable) {
-                println("HITV-EPG fetchCurrentEpg ERR epgId='$epgId': ${e.message}")
+            } catch (_: Throwable) {
+                null
+            }
+        }
+    }
+
+    override suspend fun getPastProgramsForChannel(epgChannelId: String, limit: Int): List<ChannelEpgInfo> {
+        val epgId = epgChannelId.trim().lowercase().takeIf { it.isNotBlank() } ?: return emptyList()
+        return withContext(Dispatchers.IO) {
+            try {
+                val now = Clock.System.now().toEpochMilliseconds()
+                val rows = programmeQueries.selectPastProgrammes(
+                    epgId,
+                    userId.toLong(),
+                    now,
+                    limit.toLong()
+                ).executeAsList()
+                val epgChannel = epgChannelQueries.selectByChannelIdAndUserId(epgId, userId.toLong())
+                    .executeAsOneOrNull()
+                rows.map { row ->
+                    ChannelEpgInfo(
+                        channelId = row.channel_id,
+                        channelName = row.display_name ?: row.channel_name,
+                        programmeTitle = row.title,
+                        programmeDescription = row.description,
+                        startTime = row.start_time,
+                        endTime = row.end_time,
+                        logo = epgChannel?.logo ?: row.logo,
+                    )
+                }
+            } catch (_: Throwable) {
+                emptyList()
+            }
+        }
+    }
+
+    override suspend fun fetchAndCacheServerTimezone(): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val uid = userId.toLong()
+                val cached = userCredentialsQueries.selectServerTimezone(uid).executeAsOneOrNull()
+                if (!cached?.serverTimezone.isNullOrEmpty()) {
+                    return@withContext cached?.serverTimezone
+                }
+                val username = preferencesHelper.getUsername()
+                val password = preferencesHelper.getPassword()
+                if (username.isEmpty() || password.isEmpty()) return@withContext null
+                val result = streamRemoteDataSource.signInWithFallback(username, password)
+                if (result is Resources.Success) {
+                    val tz = result.data?.asExternalModel()?.serverInfo?.timezone
+                    if (!tz.isNullOrEmpty()) {
+                        userCredentialsQueries.updateServerTimezone(tz, uid)
+                        return@withContext tz
+                    }
+                }
+                null
+            } catch (_: Throwable) {
                 null
             }
         }

@@ -15,7 +15,9 @@ CREATE TABLE Channel (
     contentHash TEXT,
     syncVersion INTEGER NOT NULL DEFAULT 1,
     tvArchive INTEGER NOT NULL DEFAULT 0,
-    tvArchiveDuration INTEGER NOT NULL DEFAULT 0
+    tvArchiveDuration INTEGER NOT NULL DEFAULT 0,
+    catchupType TEXT,
+    catchupSource TEXT
 );
 
 CREATE UNIQUE INDEX channel_unique ON Channel(name, streamIcon, categoryCreatorId, userId);
@@ -99,13 +101,13 @@ SELECT * FROM Channel WHERE userId = ? AND categoryCreatorId = ? ORDER BY name A
 
 -- Insert or replace a channel
 insertOrReplace:
-INSERT OR REPLACE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion, tvArchive, tvArchiveDuration)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion, tvArchive, tvArchiveDuration, catchupType, catchupSource)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Insert or ignore a channel (returns rowid)
 insertOrIgnore:
-INSERT OR IGNORE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion, tvArchive, tvArchiveDuration)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR IGNORE INTO Channel(name, streamUrl, streamIcon, epgChannelId, categoryCreatorId, isFavorite, licenseKey, userId, lastViewedTimestamp, lastUpdated, lastSeen, contentHash, syncVersion, tvArchive, tvArchiveDuration, catchupType, catchupSource)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Update favorite status
 updateFavorite:

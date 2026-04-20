@@ -284,14 +284,50 @@ fun ChannelPlayerScreen(
             }
         }
 
-        // === Bottom EPG overlay (matches original) ===
-        if (uiState.isControlsVisible && !uiState.isChannelListVisible && uiState.currentChannelEpg != null) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                EpgInfoOverlay(epgInfo = uiState.currentChannelEpg!!)
+        // === Bottom overlay: catch-up variants take priority over the default EPG card ===
+        var showArchiveSheet by remember { mutableStateOf(false) }
+        if (uiState.isControlsVisible && !uiState.isChannelListVisible) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                val catchUp = uiState.catchUpState
+                when {
+                    catchUp.isActive -> {
+                        CatchUpControlsOverlayMobile(
+                            catchUpState = catchUp,
+                            onBackToLive = { viewModel.backToLive(); controlsInteractionCounter++ },
+                            onPreviousProgram = { viewModel.navigatePreviousProgram(); controlsInteractionCounter++ },
+                            onNextProgram = { viewModel.navigateNextProgram(); controlsInteractionCounter++ },
+                            onPlaybackSpeedChange = { viewModel.setCatchUpPlaybackSpeed(it); controlsInteractionCounter++ },
+                            onSeekTo = { viewModel.seekCatchUpTo(it); controlsInteractionCounter++ },
+                            onBrowseArchive = { showArchiveSheet = true; controlsInteractionCounter++ },
+                        )
+                    }
+                    catchUp.channelHasCatchUp && uiState.currentChannelEpg != null -> {
+                        CatchUpEpgOverlayMobile(
+                            epgInfo = uiState.currentChannelEpg!!,
+                            pastPrograms = catchUp.pastPrograms,
+                            onRewindToStart = { viewModel.rewindToStart(); controlsInteractionCounter++ },
+                            onBrowseArchive = { showArchiveSheet = true; controlsInteractionCounter++ },
+                        )
+                    }
+                    uiState.currentChannelEpg != null -> {
+                        EpgInfoOverlay(epgInfo = uiState.currentChannelEpg!!)
+                    }
+                }
             }
+        }
+
+        // === Catch-up archive sheet (full-screen immersive dialog) ===
+        if (showArchiveSheet) {
+            CatchUpArchiveSheet(
+                pastPrograms = uiState.catchUpState.pastPrograms,
+                channelName = uiState.currentChannelName,
+                onDismiss = { showArchiveSheet = false },
+                onProgramClick = { start, end, title, description ->
+                    viewModel.switchToCatchUp(start, end, title, description)
+                    showArchiveSheet = false
+                    controlsInteractionCounter++
+                },
+            )
         }
 
         // === Sleep Timer Dialog ===

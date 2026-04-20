@@ -107,10 +107,6 @@ actual object EpgStreamingLoader {
 
         onProgress(channels.size, "channels")
         onProgress(programmeIdCounter, "programmes")
-        println("HITV-EPG parser (android): channels=${channels.size}, programmes=$programmeIdCounter, programmesMapKeys=${programmes.size}")
-        val sampleChannelIds = channels.take(5).map { it.channelID }
-        val sampleProgKeys = programmes.keys.take(5).toList()
-        println("HITV-EPG parser sample channelIds=$sampleChannelIds progMapKeys=$sampleProgKeys")
         return EpgDomainData(channels = channels, programmes = programmes)
     }
 

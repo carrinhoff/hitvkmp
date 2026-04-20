@@ -21,6 +21,27 @@ sealed interface LivePlaybackState {
 }
 
 /**
+ * State for the catch-up (time-shift) layer on top of live playback.
+ * - `channelHasCatchUp` flips to true whenever the selected channel has
+ *   `tvArchive > 0`. Drives the live EPG overlay's extra buttons.
+ * - `isActive` flips to true once the player starts streaming an archived
+ *   programme. Drives the controls overlay (seek, speed, prev/next, LIVE).
+ */
+data class CatchUpState(
+    val isActive: Boolean = false,
+    val channelHasCatchUp: Boolean = false,
+    val programStart: Long = 0L,
+    val programEnd: Long = 0L,
+    val programTitle: String = "",
+    val programDescription: String = "",
+    val catchUpUrl: String? = null,
+    val pastPrograms: List<ChannelEpgInfo> = emptyList(),
+    val playbackSpeed: Float = 1.0f,
+    val playbackPositionMs: Long = 0L,
+    val playbackDurationMs: Long = 0L,
+)
+
+/**
  * UI state for the live channel player.
  */
 data class LivePlayerUiState(
@@ -46,5 +67,6 @@ data class LivePlayerUiState(
     val isPiPModeEnabled: Boolean = true,
     val isTvDevice: Boolean = false,
     val currentCategoryTitle: String? = null,
-    val currentCategoryId: Int = -1
+    val currentCategoryId: Int = -1,
+    val catchUpState: CatchUpState = CatchUpState(),
 )

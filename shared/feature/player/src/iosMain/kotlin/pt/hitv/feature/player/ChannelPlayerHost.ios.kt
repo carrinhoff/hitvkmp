@@ -29,13 +29,18 @@ import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
 import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.playbackBufferEmpty
 import platform.AVFoundation.playbackLikelyToKeepUp
+import platform.AVFoundation.rate
 import platform.AVFoundation.removeTimeObserver
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
+import platform.AVFoundation.seekToTime
 import platform.CoreMedia.CMTime
+import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.NSURL
 import platform.UIKit.UIViewController
@@ -145,7 +150,9 @@ private fun ChannelPlayerHostContent(
     val currentAspectMode = uiState.currentAspectMode
 
     // Periodic time observer: derives buffering/ready/failed and triggers retry on
-    // failure. Same cadence as PlayerHost.ios (0.5 s).
+    // failure. Same cadence as PlayerHost.ios (0.5 s). While in catch-up mode,
+    // the same tick pumps position + duration back into the ViewModel so the
+    // shared slider stays in sync with AVPlayer.
     DisposableEffect(avPlayer) {
         val token: Any? = avPlayer.addPeriodicTimeObserverForInterval(
             interval = CMTimeMakeWithSeconds(0.5, preferredTimescale = 1000),
@@ -179,6 +186,15 @@ private fun ChannelPlayerHostContent(
                     }
                     else -> viewModel.setPlaybackBuffering()
                 }
+
+                // Catch-up progress — only pump when active to avoid churn on live.
+                if (viewModel.uiState.value.catchUpState.isActive) {
+                    val posSec = CMTimeGetSeconds(avPlayer.currentTime())
+                    val durSec = CMTimeGetSeconds(item.duration)
+                    val posMs = if (posSec.isFinite() && posSec >= 0.0) (posSec * 1000.0).toLong() else 0L
+                    val durMs = if (durSec.isFinite() && durSec > 0.0) (durSec * 1000.0).toLong() else 0L
+                    viewModel.updateCatchUpPosition(posMs, durMs)
+                }
             }
         )
         onDispose {
@@ -196,6 +212,22 @@ private fun ChannelPlayerHostContent(
         uiState.fetchedChannel?.let { ch ->
             viewModel.fetchCurrentEpg(ch, kotlinx.datetime.Clock.System.now().toEpochMilliseconds())
         }
+    }
+
+    // Catch-up seek: collect requests from the slider and drive AVPlayer.
+    LaunchedEffect(Unit) {
+        viewModel.catchUpSeekRequests.collect { positionMs ->
+            val seconds = positionMs / 1000.0
+            avPlayer.seekToTime(CMTimeMakeWithSeconds(seconds, preferredTimescale = 1000))
+        }
+    }
+
+    // Catch-up playback speed → AVPlayer.rate. Only applied while catch-up is
+    // active; the live stream always plays at 1x.
+    val catchUpActive = uiState.catchUpState.isActive
+    val playbackSpeed = uiState.catchUpState.playbackSpeed
+    LaunchedEffect(catchUpActive, playbackSpeed) {
+        if (catchUpActive) avPlayer.setRate(playbackSpeed) else avPlayer.setRate(1f)
     }
 
     ChannelPlayerScreen(

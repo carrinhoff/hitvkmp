@@ -25,6 +25,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -149,6 +150,7 @@ class ChannelPlayerActivity : ComponentActivity() {
         observePlaybackTriggers()
         observeResizeMode()
         observeFetchedChannel()
+        observeCatchUp()
     }
 
     // --- Player creation ---
@@ -295,6 +297,45 @@ class ChannelPlayerActivity : ComponentActivity() {
                             viewModel.fetchCurrentEpg(channel, System.currentTimeMillis())
                         }
                     }
+            }
+        }
+    }
+
+    // --- Catch-up (time-shift) bridges ---
+    // Three pieces: 1) collect seek requests from the slider and hand them to
+    // ExoPlayer; 2) track playback speed changes (1x on live, 0.5-2x in catch-up);
+    // 3) pump periodic position updates into the VM so the slider stays in sync.
+    private fun observeCatchUp() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.catchUpSeekRequests.collect { positionMs ->
+                    exoPlayer?.seekTo(positionMs)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState
+                    .map { it.catchUpState.isActive to it.catchUpState.playbackSpeed }
+                    .distinctUntilChanged()
+                    .collect { (active, speed) ->
+                        exoPlayer?.playbackParameters = PlaybackParameters(if (active) speed else 1f)
+                    }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    if (viewModel.uiState.value.catchUpState.isActive) {
+                        val p = exoPlayer
+                        if (p != null) {
+                            val pos = p.currentPosition.coerceAtLeast(0L)
+                            val dur = if (p.duration > 0L) p.duration else 0L
+                            viewModel.updateCatchUpPosition(pos, dur)
+                        }
+                    }
+                    delay(500L)
+                }
             }
         }
     }

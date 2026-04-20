@@ -31,6 +31,21 @@ interface StreamRepository {
         onProgrammeProgress: suspend (programmesProcessed: Int, totalProgrammes: Int) -> Unit // Add this new callback
     )
     suspend fun fetchCurrentEpg(channel: Channel, currentTimeInMillis: Long): ChannelEpgInfo?
+
+    /**
+     * Past programmes (already ended) for a channel, newest first.
+     * Drives the catch-up archive sheet. `epgChannelId` is normalized to
+     * lowercase+trimmed inside the repository.
+     */
+    suspend fun getPastProgramsForChannel(epgChannelId: String, limit: Int = Int.MAX_VALUE): List<ChannelEpgInfo>
+
+    /**
+     * Fetches the Xtream server timezone and caches it in UserCredentials.
+     * Returns the cached value if already present. Used by the catch-up URL
+     * builder to format start-times for the XC timeshift endpoint in the
+     * server's local time rather than UTC.
+     */
+    suspend fun fetchAndCacheServerTimezone(): String?
     suspend fun fetchChannelsData(): Resources<List<LiveStream>> // For initial data fetch/refresh
     suspend fun saveFavoriteChannel(channel: Channel) // Keep signature
     suspend fun getFavoritesChannel(): Flow<List<Channel>> // Returns Domain Model (consistent with MovieRepository/TvShowRepository)

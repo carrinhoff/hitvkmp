@@ -16,5 +16,7 @@ data class NetworkLiveStream(
     @SerialName("custom_sid") val customSid: String? = null,
     @SerialName("tv_archive") val tvArchive: Int = 0,
     @SerialName("direct_source") val directSource: String? = null,
-    @SerialName("tv_archive_duration") val tvArchiveDuration: Int = 0
+    @SerialName("tv_archive_duration") val tvArchiveDuration: Int = 0,
+    @SerialName("catchup_type") val catchupType: String? = null,
+    @SerialName("catchup_source") val catchupSource: String? = null,
 )

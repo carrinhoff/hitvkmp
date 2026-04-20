@@ -89,7 +89,9 @@ fun NetworkLiveStream.asExternalModel() = LiveStream(
     customSid = customSid ?: "",
     tvArchive = tvArchive,
     directSource = directSource ?: "",
-    tvArchiveDuration = tvArchiveDuration
+    tvArchiveDuration = tvArchiveDuration,
+    catchupType = catchupType,
+    catchupSource = catchupSource,
 )
 
 // NetworkCategory -> Category

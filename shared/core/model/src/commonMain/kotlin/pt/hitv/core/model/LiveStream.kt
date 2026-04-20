@@ -12,5 +12,7 @@ data class LiveStream(
     val customSid: String,
     val tvArchive: Int,
     val directSource: String,
-    val tvArchiveDuration: Int
+    val tvArchiveDuration: Int,
+    val catchupType: String? = null,
+    val catchupSource: String? = null,
 )

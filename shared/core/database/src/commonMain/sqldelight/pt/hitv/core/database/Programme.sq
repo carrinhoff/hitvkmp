@@ -96,6 +96,36 @@ AND EXISTS (
 GROUP BY c.categoryId, c.categoryName
 ORDER BY c.categoryName ASC;
 
+-- Get past programmes (already ended) for a channel, newest first.
+-- Drives the "Browse Archive" list in the catch-up overlay. LEFT JOINs match
+-- the current-programme query (see comment on selectChannelWithProgrammeDetails):
+-- title/description rows are only inserted for non-blank values, so INNER
+-- JOINs would drop otherwise-valid programmes.
+-- GROUP BY pg.id collapses accidental duplicates from joining Title/Description
+-- (e.g. a programme with two <title> entries) into one row per programme.
+selectPastProgrammes:
+SELECT
+    epgc.channel_id,
+    epgc.logo,
+    epgc.display_name,
+    ch.name AS channel_name,
+    pg.start_time,
+    pg.end_time,
+    pg.id AS programme_id,
+    t.title AS title,
+    d.desc AS description
+FROM EpgChannel AS epgc
+INNER JOIN Channel AS ch ON ch.epgChannelId = epgc.channel_id AND ch.userId = epgc.userId
+INNER JOIN Programme AS pg ON pg.channel_name = epgc.channel_id AND pg.userId = ch.userId
+LEFT JOIN Title AS t ON t.programme_id = pg.id
+LEFT JOIN Description AS d ON d.programme_id = pg.id
+WHERE epgc.channel_id = ?
+AND ch.userId = ?
+AND pg.end_time < ?
+GROUP BY pg.id
+ORDER BY pg.start_time DESC
+LIMIT ?;
+
 -- Get programmes for a specific category
 selectProgrammesForCategory:
 SELECT
