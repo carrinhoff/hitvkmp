@@ -56,10 +56,16 @@ actual object EpgStreamingLoader {
         val bgTaskId = app.beginBackgroundTaskWithExpirationHandler(null)
         try {
             val xml = downloadXml(url)
+            println("HITV-EPG parser (ios): fetched xml bytes=${xml.length}, starts='${xml.take(120).replace("\n", "\\n")}'")
             onProgress(0, "channels")
             return EpgParser.parse(xml).also {
+                val totalProgs = it.programmes.values.sumOf { list -> list.size }
+                println("HITV-EPG parser (ios): channels=${it.channels.size}, programmes=$totalProgs, mapKeys=${it.programmes.size}")
+                val sampleChannelIds = it.channels.take(5).map { c -> c.channelID }
+                val sampleProgKeys = it.programmes.keys.take(5).toList()
+                println("HITV-EPG parser (ios) sample channelIds=$sampleChannelIds progMapKeys=$sampleProgKeys")
                 onProgress(it.channels.size, "channels")
-                onProgress(it.programmes.values.sumOf { list -> list.size }, "programmes")
+                onProgress(totalProgs, "programmes")
             }
         } finally {
             if (bgTaskId != UIBackgroundTaskInvalid) {
