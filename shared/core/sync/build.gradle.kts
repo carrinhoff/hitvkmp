@@ -11,6 +11,7 @@ kotlin {
             implementation(project(":shared:core:domain"))
             implementation(project(":shared:core:data"))
             implementation(project(":shared:epg"))
+            implementation(libs.findLibrary("kotlinx-datetime").get())
         }
         androidMain.dependencies {
             implementation(libs.findLibrary("androidx-work-runtime-ktx").get())

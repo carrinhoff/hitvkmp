@@ -1,10 +1,21 @@
 package pt.hitv.core.sync
 
+import kotlinx.datetime.Clock
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.common.Resources
 import pt.hitv.core.domain.repositories.MovieRepository
 import pt.hitv.core.domain.repositories.StreamRepository
 import pt.hitv.core.domain.repositories.TvShowRepository
+
+/**
+ * Preference keys for "last successful run" timestamps per background task.
+ * Read by the sync settings screen to show "last ran X minutes ago" and infer
+ * the next scheduled run (lastRun + interval).
+ */
+object SyncTimestampKeys {
+    const val LAST_SYNC_EPG_MS = "last_sync_epg_ms"
+    const val LAST_SYNC_CONTENT_MS = "last_sync_content_ms"
+}
 
 /**
  * Shared sync logic that delegates to repositories for actual data operations.
@@ -73,6 +84,10 @@ class SyncManagerImpl(
                         onChannelProgress = { _, _ -> },
                         onProgrammeProgress = { _, _ -> }
                     )
+                    preferencesHelper.setStoredLongTag(
+                        SyncTimestampKeys.LAST_SYNC_EPG_MS,
+                        Clock.System.now().toEpochMilliseconds()
+                    )
                     SyncResult(isSuccess = true)
                 }
                 is Resources.Error -> SyncResult(isSuccess = false, errorMessage = result.message)
@@ -110,6 +125,14 @@ class SyncManagerImpl(
         val seriesResult = syncSeries(userId)
         if (!seriesResult.isSuccess) return seriesResult
         onProgress(100, "Series", "Series synced: ${seriesResult.inserted} items")
+
+        // All three content stages succeeded — stamp the content-sync timestamp
+        // so the Settings screen can show "last ran X ago". EPG has its own
+        // stamp because EPG sync runs on a separate cadence.
+        preferencesHelper.setStoredLongTag(
+            SyncTimestampKeys.LAST_SYNC_CONTENT_MS,
+            Clock.System.now().toEpochMilliseconds()
+        )
 
         return SyncResult(isSuccess = true)
     }

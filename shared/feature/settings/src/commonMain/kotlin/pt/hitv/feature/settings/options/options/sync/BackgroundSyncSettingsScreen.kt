@@ -187,9 +187,97 @@ fun BackgroundSyncSettingsScreen(
                     textSecondaryColor = textSecondaryColor
                 )
             }
+            // Last-run timestamps — read from PreferencesHelper, written by
+            // SyncManagerImpl on every successful sync. Surfaces "last ran Xh ago"
+            // and the approximate next scheduled run (lastRun + interval).
+            item {
+                LastRunRow(
+                    label = "EPG",
+                    lastRunMs = state.lastEpgSyncMs,
+                    intervalMs = state.epgIntervalHours * 60L * 60L * 1000L,
+                    primaryColor = primaryColor,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                )
+            }
+            item {
+                LastRunRow(
+                    label = "Content",
+                    lastRunMs = state.lastContentSyncMs,
+                    intervalMs = state.contentIntervalDays * 24L * 60L * 60L * 1000L,
+                    primaryColor = primaryColor,
+                    textColor = textColor,
+                    textSecondaryColor = textSecondaryColor,
+                )
+            }
 
             item { Spacer(Modifier.height(16.dp)) }
         }
+    }
+}
+
+@Composable
+private fun LastRunRow(
+    label: String,
+    lastRunMs: Long,
+    intervalMs: Long,
+    primaryColor: Color,
+    textColor: Color,
+    textSecondaryColor: Color,
+) {
+    val lastRunText = formatTimeAgo(lastRunMs) ?: "Never"
+    val nextRunText = if (lastRunMs > 0L) formatTimeUntil(lastRunMs + intervalMs) else "—"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, color = textColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("Last run: $lastRunText", color = textSecondaryColor, fontSize = 12.sp)
+            Text("Next run: $nextRunText", color = textSecondaryColor, fontSize = 12.sp)
+        }
+        Icon(
+            imageVector = Icons.Rounded.Sync,
+            contentDescription = null,
+            tint = primaryColor.copy(alpha = 0.6f),
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/** "5 minutes ago", "2 hours ago", "3 days ago", or null if never. */
+private fun formatTimeAgo(epochMs: Long): String? {
+    if (epochMs <= 0L) return null
+    val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+    val diff = now - epochMs
+    if (diff < 0) return "just now"
+    val minutes = diff / 60_000L
+    val hours = minutes / 60L
+    val days = hours / 24L
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "$minutes min ago"
+        hours < 24 -> "$hours h ago"
+        else -> "$days d ago"
+    }
+}
+
+/** "in 3 hours", "in 2 days", or "overdue". */
+private fun formatTimeUntil(epochMs: Long): String {
+    val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+    val diff = epochMs - now
+    if (diff <= 0) return "overdue"
+    val minutes = diff / 60_000L
+    val hours = minutes / 60L
+    val days = hours / 24L
+    return when {
+        minutes < 60 -> "in $minutes min"
+        hours < 24 -> "in $hours h"
+        else -> "in $days d"
     }
 }
 

@@ -2,8 +2,11 @@ package pt.hitv.feature.settings.options.options.more
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -13,6 +16,7 @@ import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.designsystem.theme.ThemeManager
 import pt.hitv.core.domain.repositories.AccountManagerRepository
 import pt.hitv.core.sync.BackgroundSyncManager
+import pt.hitv.core.sync.SyncTaskStatus
 import pt.hitv.core.sync.TASK_CONTENT
 import pt.hitv.core.sync.TASK_EPG
 
@@ -161,14 +165,37 @@ class MoreOptionsViewModel(
     }
 
     /**
+     * One-shot event stream for UI-level toasts/snackbars the ViewModel wants to
+     * surface. Composables collect this and render transient feedback (used
+     * today for the "sync already running" case and the restart-required hint).
+     */
+    private val _userMessages = MutableSharedFlow<UserMessage>(extraBufferCapacity = 4)
+    val userMessages: SharedFlow<UserMessage> = _userMessages.asSharedFlow()
+
+    /**
      * Kick off one-shot runs for both background sync tasks. Used by the
-     * "Refresh Data" entry on the More screen.
+     * "Refresh Data" entry on the More screen. Skips the enqueue if either task
+     * is already running — matches the original Android behaviour which queries
+     * WorkManager for in-flight work before submitting. Emits a SyncAlreadyRunning
+     * message so the UI can show a toast.
      */
     fun triggerRefreshData() {
+        val status = backgroundSyncManager.statusFlow.value
+        val alreadyRunning = status[TASK_CONTENT] == SyncTaskStatus.Running ||
+            status[TASK_EPG] == SyncTaskStatus.Running
+        if (alreadyRunning) {
+            _userMessages.tryEmit(UserMessage.SyncAlreadyRunning)
+            return
+        }
         viewModelScope.launch {
             backgroundSyncManager.runOnce(TASK_CONTENT)
             backgroundSyncManager.runOnce(TASK_EPG)
         }
+    }
+
+    /** Transient one-shot events for the More screen to surface via snackbar/toast. */
+    sealed interface UserMessage {
+        data object SyncAlreadyRunning : UserMessage
     }
 
     companion object {

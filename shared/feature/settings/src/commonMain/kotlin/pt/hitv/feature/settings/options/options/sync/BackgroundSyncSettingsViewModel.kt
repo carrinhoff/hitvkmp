@@ -7,9 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.sync.BackgroundSyncManager
 import pt.hitv.core.sync.BackgroundSyncResult
+import pt.hitv.core.sync.SyncTimestampKeys
 import pt.hitv.core.sync.TASK_CONTENT
 import pt.hitv.core.sync.TASK_EPG
 
@@ -42,7 +44,10 @@ data class BackgroundSyncSettingsUiState(
     val enabled: Boolean = false,
     val epgIntervalHours: Long = DEFAULT_EPG_INTERVAL_HOURS,
     val contentIntervalDays: Long = DEFAULT_CONTENT_INTERVAL_DAYS,
-    val wifiOnly: Boolean = true
+    val wifiOnly: Boolean = true,
+    // epoch-millis of the last successful run; 0 means "never"
+    val lastEpgSyncMs: Long = 0L,
+    val lastContentSyncMs: Long = 0L,
 )
 
 /**
@@ -75,6 +80,20 @@ class BackgroundSyncSettingsViewModel(
         // re-submit BGTasks after launch.
         if (_uiState.value.enabled) {
             applySchedule(_uiState.value)
+        }
+        // Poll the last-run timestamps — they're written by SyncManagerImpl on
+        // success and live in PreferencesHelper so we don't need a shared flow.
+        // 5s cadence is plenty; timestamps move on human-scale (hours/days).
+        viewModelScope.launch {
+            while (true) {
+                _uiState.update {
+                    it.copy(
+                        lastEpgSyncMs = preferencesHelper.getStoredLongTag(SyncTimestampKeys.LAST_SYNC_EPG_MS),
+                        lastContentSyncMs = preferencesHelper.getStoredLongTag(SyncTimestampKeys.LAST_SYNC_CONTENT_MS),
+                    )
+                }
+                delay(5_000L)
+            }
         }
     }
 

@@ -51,8 +51,12 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,8 +110,23 @@ fun MobileMoreOptionsScreen(
     val playerEngine by viewModel.playerEngine.collectAsState()
     val liveBufferSize by viewModel.liveBufferSize.collectAsState()
     val syncState by syncViewModel.uiState.collectAsState()
+    val pendingRestart by viewModel.pendingRestart.collectAsState()
 
     var backgroundSyncExpanded by remember { mutableStateOf(false) }
+
+    // Transient snackbar for UserMessage events (e.g. "sync already running" when
+    // the user taps Refresh Data while a task is in flight). Persistent states
+    // like `pendingRestart` get a banner instead — different lifetimes.
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.userMessages.collect { msg ->
+            val text = when (msg) {
+                MoreOptionsViewModel.UserMessage.SyncAlreadyRunning ->
+                    "A sync is already running — check back in a moment."
+            }
+            snackbarHostState.showSnackbar(text)
+        }
+    }
 
     val languageLabel = remember(currentLanguage) {
         if (currentLanguage.isEmpty() || currentLanguage == "system") "System Default"
@@ -155,6 +174,20 @@ fun MobileMoreOptionsScreen(
                     color = textSecondaryColor,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Normal
+                )
+            }
+
+            // Restart-required banner — only on platforms where the locale hot-swap
+            // isn't immediate (iOS). Sticky at the top of the scroll surface so the
+            // user can't miss it after changing language.
+            AnimatedVisibility(
+                visible = pendingRestart,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                RestartRequiredBanner(
+                    primaryColor = primaryColor,
+                    textColor = textColor,
                 )
             }
 
@@ -254,6 +287,57 @@ fun MobileMoreOptionsScreen(
                 }
 
                 item { Spacer(modifier = Modifier.height(16.dp)) }
+            }
+        }
+
+        // Bottom-aligned snackbar host. Anchored to the outer Box so it floats
+        // above the LazyColumn content regardless of scroll position.
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp),
+            snackbar = { data -> Snackbar(snackbarData = data) }
+        )
+    }
+}
+
+@Composable
+private fun RestartRequiredBanner(
+    primaryColor: Color,
+    textColor: Color,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = primaryColor.copy(alpha = 0.18f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, primaryColor.copy(alpha = 0.35f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = null,
+                tint = primaryColor,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Restart required",
+                    color = textColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Language changes take full effect the next time you open the app.",
+                    color = textColor.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                )
             }
         }
     }
