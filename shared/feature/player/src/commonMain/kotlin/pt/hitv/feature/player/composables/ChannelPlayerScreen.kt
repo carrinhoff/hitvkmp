@@ -66,6 +66,7 @@ import kotlinx.datetime.Clock
 import pt.hitv.core.designsystem.theme.getThemeColors
 import pt.hitv.core.model.Category
 import pt.hitv.core.model.Channel
+import pt.hitv.feature.player.KeepScreenOnAndFullscreen
 import pt.hitv.feature.player.LivePlaybackState
 import pt.hitv.feature.player.LivePlayerViewModel
 import pt.hitv.feature.player.helpers.ChannelNavigationHelper
@@ -94,6 +95,11 @@ fun ChannelPlayerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val sleepTimerRemaining by sleepTimerManager.remainingMs.collectAsState()
     val themeColors = getThemeColors()
+
+    // Hide system bars + keep the screen on for as long as the player is composed.
+    // Restored on dispose. Was declared but never invoked — that's why iOS rendered
+    // a white status-bar strip on top of the player.
+    KeepScreenOnAndFullscreen()
 
     val channels = uiState.cachedChannels ?: emptyList()
     val categoryMap = remember(uiState.categories) {

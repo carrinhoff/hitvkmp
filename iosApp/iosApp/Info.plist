@@ -17,12 +17,18 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
     <key>CFBundleVersion</key>
-    <string>26</string>
+    <string>27</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <!-- Lets UIApplication.setStatusBarHidden(...) actually take effect.
+         With the default (YES), each UIViewController must override
+         prefersStatusBarHidden, which Compose UIViewController doesn't
+         expose ergonomically from Kotlin. -->
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
     <key>LSRequiresIPhoneOS</key>

@@ -260,7 +260,8 @@ private fun ChannelPlayerHostContent(
             if (uiState.playbackState is LivePlaybackState.Playing) avPlayer.pause() else avPlayer.play()
         },
         onSleepTimerSelect = { sleepTimerManager.start(it) },
-        onSleepTimerCancel = { sleepTimerManager.cancel() }
+        onSleepTimerCancel = { sleepTimerManager.cancel() },
+        onForceRotation = { toggleDeviceOrientation() },
     )
 }
 
