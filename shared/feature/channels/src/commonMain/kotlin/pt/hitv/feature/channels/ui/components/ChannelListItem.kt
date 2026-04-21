@@ -69,18 +69,24 @@ fun ChannelListItem(
     isCompact: Boolean = false,
     viewModel: StreamViewModel
 ) {
-    // Fetch EPG data for this channel only if not already cached or loading
+    // Fetch EPG data for this channel only if not already cached or loading.
+    // Only cache a non-null result — caching `null` would poison the cache for
+    // rows that recomposed before EPG sync completed: subsequent recompositions
+    // would see the cached `null`, skip the fetch, and render "No EPG" forever
+    // (until the user force-closed the app to clear the in-memory cache).
     LaunchedEffect(channel.epgChannelId) {
         val epgId = channel.epgChannelId
-        if (!epgId.isNullOrBlank() && !epgCache.containsKey(epgId) && !epgLoadingSet.contains(epgId)) {
+        if (!epgId.isNullOrBlank() && epgCache[epgId] == null && !epgLoadingSet.contains(epgId)) {
             try {
                 epgLoadingSet.add(epgId)
                 val epgData = withContext(Dispatchers.IO) {
                     viewModel.fetchCurrentEpgSuspend(channel, Clock.System.now().toEpochMilliseconds())
                 }
-                epgCache[epgId] = epgData
-            } catch (e: Exception) {
-                epgCache[epgId] = null
+                if (epgData != null) {
+                    epgCache[epgId] = epgData
+                }
+            } catch (_: Exception) {
+                // Don't cache failures — let the next recomposition retry.
             } finally {
                 epgLoadingSet.remove(epgId)
             }
