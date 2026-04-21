@@ -126,14 +126,25 @@ class SyncStateManager {
             startDataSync()
             try {
                 if (needsDataSync) {
-                    (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
+                    val result = (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
                         updateProgress(p, s, m)
                     }
-                    // Tabs become usable as soon as channels/movies/series are in.
-                    // We deliberately don't gate UI on EPG — that flag (`epg_sync_complete`)
-                    // is independent so a transient EPG failure doesn't block the rest of
-                    // the app, but also doesn't prevent the next launch from retrying EPG.
-                    preferencesHelper.setStoredBoolean("initial_sync_complete", true)
+                    // Only mark the data sync complete when ALL stages
+                    // (channels + movies + series) actually succeeded.
+                    // Previously we set the flag unconditionally — if iOS
+                    // suspended the app mid-series-fetch and the URLSession
+                    // got cancelled, syncSeries returned isSuccess=false but
+                    // we still flipped the flag to true, so the next launch
+                    // would skip the data sync entirely and the user was
+                    // permanently missing series. Leaving the flag false on
+                    // failure means the next launch retries; channels/movies
+                    // already in the DB just refresh idempotently.
+                    if (result.isSuccess) {
+                        preferencesHelper.setStoredBoolean("initial_sync_complete", true)
+                    } else {
+                        onSyncFailed(result.errorMessage)
+                        return@launch
+                    }
                 }
                 onSyncComplete()
 
@@ -155,5 +166,23 @@ class SyncStateManager {
                 onSyncFailed(e.message)
             }
         }
+    }
+
+    /**
+     * Force a full refresh of channels/movies/series + EPG, used by the
+     * "Refresh Data" entry on the More screen. Resets both completion flags
+     * and re-runs the same flow as initial sync — surfacing the progress
+     * overlay (`syncState`, `progress`, `stageMessage`) so the user sees
+     * the same "Syncing channels…" UI they saw on first login.
+     */
+    fun forceFullRefresh(
+        userId: Int,
+        syncManager: SyncManager,
+        preferencesHelper: PreferencesHelper,
+    ) {
+        if (runningJob?.isActive == true) return
+        preferencesHelper.setStoredBoolean("initial_sync_complete", false)
+        preferencesHelper.setStoredBoolean("epg_sync_complete", false)
+        startInitialSyncIfNeeded(userId, syncManager, preferencesHelper)
     }
 }

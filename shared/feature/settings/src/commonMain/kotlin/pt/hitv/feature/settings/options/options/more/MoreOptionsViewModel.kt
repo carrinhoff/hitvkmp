@@ -16,6 +16,8 @@ import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.designsystem.theme.ThemeManager
 import pt.hitv.core.domain.repositories.AccountManagerRepository
 import pt.hitv.core.sync.BackgroundSyncManager
+import pt.hitv.core.sync.SyncManager
+import pt.hitv.core.sync.SyncStateManager
 import pt.hitv.core.sync.SyncTaskStatus
 import pt.hitv.core.sync.TASK_CONTENT
 import pt.hitv.core.sync.TASK_EPG
@@ -42,7 +44,9 @@ class MoreOptionsViewModel(
     private val themeManager: ThemeManager,
     private val localeController: LocaleController,
     private val appInfoProvider: AppInfoProvider,
-    private val backgroundSyncManager: BackgroundSyncManager
+    private val backgroundSyncManager: BackgroundSyncManager,
+    private val syncStateManager: SyncStateManager,
+    private val syncManager: SyncManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MoreOptionsUiState())
@@ -173,13 +177,21 @@ class MoreOptionsViewModel(
     val userMessages: SharedFlow<UserMessage> = _userMessages.asSharedFlow()
 
     /**
-     * Kick off one-shot runs for both background sync tasks. Used by the
-     * "Refresh Data" entry on the More screen. Skips the enqueue if either task
-     * is already running — matches the original Android behaviour which queries
-     * WorkManager for in-flight work before submitting. Emits a SyncAlreadyRunning
-     * message so the UI can show a toast.
+     * "Refresh Data" entry on the More screen.
+     *
+     * Routes through [SyncStateManager.forceFullRefresh] (instead of the silent
+     * `BackgroundSyncManager.runOnce`) so the same progress overlay that runs
+     * on first login appears here too — matches the original Android project,
+     * which also surfaces the sync screen when the user manually refreshes.
+     *
+     * Still guards against double-tap: if a sync is already in flight, emit a
+     * [UserMessage.SyncAlreadyRunning] for the snackbar and skip the enqueue.
      */
     fun triggerRefreshData() {
+        if (syncStateManager.isSyncRunning()) {
+            _userMessages.tryEmit(UserMessage.SyncAlreadyRunning)
+            return
+        }
         val status = backgroundSyncManager.statusFlow.value
         val alreadyRunning = status[TASK_CONTENT] == SyncTaskStatus.Running ||
             status[TASK_EPG] == SyncTaskStatus.Running
@@ -187,10 +199,11 @@ class MoreOptionsViewModel(
             _userMessages.tryEmit(UserMessage.SyncAlreadyRunning)
             return
         }
-        viewModelScope.launch {
-            backgroundSyncManager.runOnce(TASK_CONTENT)
-            backgroundSyncManager.runOnce(TASK_EPG)
-        }
+        syncStateManager.forceFullRefresh(
+            userId = preferencesHelper.getUserId(),
+            syncManager = syncManager,
+            preferencesHelper = preferencesHelper,
+        )
     }
 
     /** Transient one-shot events for the More screen to surface via snackbar/toast. */

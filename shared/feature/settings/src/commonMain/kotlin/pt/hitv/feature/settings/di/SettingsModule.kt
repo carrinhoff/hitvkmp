@@ -18,7 +18,9 @@ val settingsModule = module {
             themeManager = get(),
             localeController = get(),
             appInfoProvider = get(),
-            backgroundSyncManager = get()
+            backgroundSyncManager = get(),
+            syncStateManager = get(),
+            syncManager = get(),
         )
     }
     viewModel { ParentalControlViewModel(parentalControlManager = get(), preferencesHelper = get(), streamRepository = get()) }
