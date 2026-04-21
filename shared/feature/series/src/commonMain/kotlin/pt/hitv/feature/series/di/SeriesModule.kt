@@ -13,7 +13,8 @@ val seriesModule = module {
             getSeriesPagerUseCase = get(),
             searchSeriesUseCase = get(),
             toggleFavoriteSeriesUseCase = get(),
-            syncStateManager = get()
+            syncStateManager = get(),
+            searchHistoryRepository = get(),
         )
     }
 

@@ -9,11 +9,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import pt.hitv.core.domain.repositories.SearchHistoryRepository
 import pt.hitv.core.domain.repositories.TvShowRepository
 import pt.hitv.core.domain.usecases.GetSeriesPagerUseCase
 import pt.hitv.core.domain.usecases.SearchSeriesUseCase
 import pt.hitv.core.domain.usecases.ToggleFavoriteSeriesUseCase
 import pt.hitv.core.model.Category
+import pt.hitv.core.model.SearchHistoryItem
 import pt.hitv.core.model.TvShow
 import pt.hitv.core.model.seriesInfo.Episode
 import pt.hitv.core.model.seriesInfo.Season
@@ -66,7 +68,8 @@ class SeriesViewModel(
     private val getSeriesPagerUseCase: GetSeriesPagerUseCase,
     private val searchSeriesUseCase: SearchSeriesUseCase,
     private val toggleFavoriteSeriesUseCase: ToggleFavoriteSeriesUseCase,
-    private val syncStateManager: SyncStateManager
+    private val syncStateManager: SyncStateManager,
+    private val searchHistoryRepository: SearchHistoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SeriesUiState())
@@ -75,6 +78,35 @@ class SeriesViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val userIdFlow = userSessionManager.userIdFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, preferencesHelper.getUserId())
+
+    /** Recent searches for the Series tab — mirrors StreamViewModel.searchHistory. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val searchHistory: StateFlow<List<SearchHistoryItem>> = userIdFlow
+        .flatMapLatest { uid ->
+            if (uid == -1) flowOf(emptyList())
+            else searchHistoryRepository.observe(uid, SearchHistoryRepository.KIND_SERIES)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun deleteSearchHistoryItem(id: Long) {
+        viewModelScope.launch { searchHistoryRepository.deleteById(id) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch {
+            searchHistoryRepository.clear(userIdFlow.value, SearchHistoryRepository.KIND_SERIES)
+        }
+    }
+
+    private fun rememberSearchTerm(query: String) {
+        viewModelScope.launch {
+            searchHistoryRepository.add(
+                userId = userIdFlow.value,
+                kind = SearchHistoryRepository.KIND_SERIES,
+                query = query,
+            )
+        }
+    }
 
     private val _refreshPagingEvent = MutableSharedFlow<Unit>()
     val refreshPagingEvent: SharedFlow<Unit> = _refreshPagingEvent.asSharedFlow()
@@ -155,7 +187,10 @@ class SeriesViewModel(
 
     fun setSearchQuery(query: String?) {
         val trimmedQuery = query?.trim().takeIf { !it.isNullOrEmpty() }
-        if (_uiState.value.currentSearchQuery != trimmedQuery) _uiState.update { it.copy(currentSearchQuery = trimmedQuery) }
+        if (_uiState.value.currentSearchQuery != trimmedQuery) {
+            _uiState.update { it.copy(currentSearchQuery = trimmedQuery) }
+            if (!trimmedQuery.isNullOrBlank()) rememberSearchTerm(trimmedQuery)
+        }
     }
 
     fun updateSort(newSort: String) {

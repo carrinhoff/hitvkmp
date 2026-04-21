@@ -12,11 +12,13 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import pt.hitv.core.domain.repositories.MovieRepository
+import pt.hitv.core.domain.repositories.SearchHistoryRepository
 import pt.hitv.core.domain.usecases.GetMoviesPagerUseCase
 import pt.hitv.core.domain.usecases.SearchMoviesUseCase
 import pt.hitv.core.domain.usecases.ToggleFavoriteMovieUseCase
 import pt.hitv.core.model.Category
 import pt.hitv.core.model.Movie
+import pt.hitv.core.model.SearchHistoryItem
 import pt.hitv.core.data.paging.MOVIE_FILTER_ALL
 import pt.hitv.core.data.paging.SORT_ADDED
 import pt.hitv.core.common.PreferencesHelper
@@ -72,7 +74,8 @@ class MovieViewModel(
     private val getMoviesPagerUseCase: GetMoviesPagerUseCase,
     private val searchMoviesUseCase: SearchMoviesUseCase,
     private val toggleFavoriteMovieUseCase: ToggleFavoriteMovieUseCase,
-    private val syncStateManager: SyncStateManager
+    private val syncStateManager: SyncStateManager,
+    private val searchHistoryRepository: SearchHistoryRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MovieUiState())
@@ -81,6 +84,35 @@ class MovieViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val userIdFlow = userSessionManager.userIdFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, preferencesHelper.getUserId())
+
+    /** Recent searches for the Movies tab — mirrors StreamViewModel.searchHistory. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val searchHistory: StateFlow<List<SearchHistoryItem>> = userIdFlow
+        .flatMapLatest { uid ->
+            if (uid == -1) flowOf(emptyList())
+            else searchHistoryRepository.observe(uid, SearchHistoryRepository.KIND_MOVIE)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun deleteSearchHistoryItem(id: Long) {
+        viewModelScope.launch { searchHistoryRepository.deleteById(id) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch {
+            searchHistoryRepository.clear(userIdFlow.value, SearchHistoryRepository.KIND_MOVIE)
+        }
+    }
+
+    private fun rememberSearchTerm(query: String) {
+        viewModelScope.launch {
+            searchHistoryRepository.add(
+                userId = userIdFlow.value,
+                kind = SearchHistoryRepository.KIND_MOVIE,
+                query = query,
+            )
+        }
+    }
 
     private val _refreshPagingEvent = MutableSharedFlow<Unit>()
     val refreshPagingEvent: SharedFlow<Unit> = _refreshPagingEvent.asSharedFlow()
@@ -185,6 +217,7 @@ class MovieViewModel(
         val trimmedQuery = query?.trim().takeIf { !it.isNullOrEmpty() }
         if (_uiState.value.currentSearchQuery != trimmedQuery) {
             _uiState.update { it.copy(currentSearchQuery = trimmedQuery) }
+            if (!trimmedQuery.isNullOrBlank()) rememberSearchTerm(trimmedQuery)
         }
     }
 

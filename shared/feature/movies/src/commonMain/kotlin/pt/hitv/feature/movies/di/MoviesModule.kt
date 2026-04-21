@@ -14,7 +14,8 @@ val moviesFeatureModule: Module = module {
             getMoviesPagerUseCase = get(),
             searchMoviesUseCase = get(),
             toggleFavoriteMovieUseCase = get(),
-            syncStateManager = get()
+            syncStateManager = get(),
+            searchHistoryRepository = get(),
         )
     }
 
