@@ -122,17 +122,12 @@ class LoginViewModel(
             _uiState.update { it.copy(isProcessingM3u = true, isLoading = true, m3uResult = null) }
 
             try {
-                // Validate URL format
-                val isValid = withContext(Dispatchers.IO) {
-                    try {
-                        // Basic URL validation without java.net.URL
-                        val hasProtocol = m3uUrl.startsWith("http://") || m3uUrl.startsWith("https://")
-                        val hasHost = m3uUrl.contains(".")
-                        hasProtocol && hasHost
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
+                // KMP-compatible equivalent of java.net.URL validation: require the
+                // http/https scheme AND a host that starts with an alphanumeric and
+                // contains only URL-legal host characters. The old check
+                // (`startsWith("http") && contains(".")`) let strings like "http://."
+                // pass through and only failed further downstream in the fetch.
+                val isValid = M3U_URL_REGEX.matches(m3uUrl.trim())
 
                 if (!isValid) {
                     _uiState.update {
@@ -232,5 +227,15 @@ class LoginViewModel(
                 )
             }
         }
+    }
+
+    companion object {
+        // http(s) + host (must start with alphanumeric, rest can include dots/dashes)
+        // + optional :port + optional /path. Mirrors the rejections the original Android
+        // project got for free from java.net.URL (empty host, dot-only host, missing
+        // scheme) without pulling java.net into commonMain.
+        private val M3U_URL_REGEX = Regex(
+            """^https?://[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?(?::\d+)?(?:/.*)?$"""
+        )
     }
 }

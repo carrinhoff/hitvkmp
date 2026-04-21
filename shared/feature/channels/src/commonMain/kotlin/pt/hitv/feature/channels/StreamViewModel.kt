@@ -50,7 +50,11 @@ data class StreamUiState(
     val fetchedChannel: Channel? = null,
     val lastClickedItemId: String? = null,
     val lastClickedItemPosition: Int = -1,
-    val categoryCounts: Map<String, Int> = emptyMap()
+    val categoryCounts: Map<String, Int> = emptyMap(),
+    // Mirrors the "Channel preview" toggle in Settings > More. When false, tapping
+    // a channel should open the full player directly instead of expanding the inline
+    // preview — matches the original Android MobileChannelsList behaviour.
+    val channelPreviewEnabled: Boolean = true,
 )
 
 /**
@@ -146,6 +150,7 @@ class StreamViewModel(
                     fetchChannelCategories()
                     getFavorites()
                     fetchRecentlyViewedChannels()
+                    loadChannelPreviewPref(userId)
                 }
             }
         }
@@ -155,6 +160,16 @@ class StreamViewModel(
         // initial value and only reacts to increments.
         viewModelScope.launch {
             syncStateManager.syncVersion.drop(1).collect { refreshAfterSync() }
+        }
+    }
+
+    /** Loads the per-user "channel preview" toggle from UserCredentials into the UI state. */
+    private fun loadChannelPreviewPref(userId: Int) {
+        viewModelScope.launch {
+            val enabled = runCatching {
+                accountManagerRepository.getCredentialsByUserId(userId)?.channelPreviewEnabled
+            }.getOrNull() ?: true
+            _uiState.update { it.copy(channelPreviewEnabled = enabled) }
         }
     }
 

@@ -427,6 +427,24 @@ fun MobileChannelsLayout(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Search-result count header: shown only while a search is active and
+                // the initial refresh has finished (otherwise "0 results" flickers
+                // mid-load). Matches the original MobileChannelsList "X results found".
+                val activeSearch = searchQuery.isNotBlank()
+                val searchLoaded = lazyPagingItems.loadState.refresh is app.cash.paging.LoadStateNotLoading
+                if (activeSearch && searchLoaded) {
+                    item(key = "__search_result_count") {
+                        val count = lazyPagingItems.itemCount
+                        val label = if (count == 1) "1 channel found" else "$count channels found"
+                        Text(
+                            text = label,
+                            color = themeColors.textColor.copy(alpha = 0.7f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                }
                 items(
                     count = lazyPagingItems.itemCount,
                     key = lazyPagingItems.itemKey { it.name + it.categoryId }
@@ -442,21 +460,32 @@ fun MobileChannelsLayout(
                                 onChannelClicked = { clickType ->
                                     when (clickType) {
                                         ClickType.CLICK -> {
-                                            val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-                                            val isDoubleClick = (now - lastClickTime < 500L) && lastClickedId == channel.id
-
-                                            if (isDoubleClick) {
-                                                // Double click → full player
+                                            // Respect the "Channel preview" setting — when the user has
+                                            // turned it off in Settings > More, every tap should jump
+                                            // straight into the full player (no double-click required,
+                                            // no inline/side preview). Matches the original
+                                            // MobileChannelsList behaviour.
+                                            if (!uiState.channelPreviewEnabled) {
                                                 onChannelClicked(channel, index)
                                                 expandedChannelId = null
+                                                selectedPreviewChannel = null
                                             } else {
-                                                // Single click → toggle preview (portrait)
-                                                // and mirror the selection to the side pane (landscape).
-                                                expandedChannelId = if (expandedChannelId == channel.id) null else channel.id
-                                                selectedPreviewChannel = channel
+                                                val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                                                val isDoubleClick = (now - lastClickTime < 500L) && lastClickedId == channel.id
+
+                                                if (isDoubleClick) {
+                                                    // Double click → full player
+                                                    onChannelClicked(channel, index)
+                                                    expandedChannelId = null
+                                                } else {
+                                                    // Single click → toggle preview (portrait)
+                                                    // and mirror the selection to the side pane (landscape).
+                                                    expandedChannelId = if (expandedChannelId == channel.id) null else channel.id
+                                                    selectedPreviewChannel = channel
+                                                }
+                                                lastClickTime = now
+                                                lastClickedId = channel.id
                                             }
-                                            lastClickTime = now
-                                            lastClickedId = channel.id
                                         }
                                         ClickType.LONG_CLICK -> viewModel.saveFavoriteChannel(
                                             channel,
