@@ -100,6 +100,13 @@ fun SeriesScreen(
         viewModel.fetchContinueWatchingSeries()
     }
 
+    // Drive search results — see MoviesScreen for the same wiring. Without
+    // this call, typing in the search box updates currentSearchQuery but the
+    // searchResultSeries map stays empty and the UI shows nothing.
+    LaunchedEffect(searchQuery, seriesUiState.categories) {
+        viewModel.updateSearchQueryWithCategories(searchQuery, seriesUiState.categories)
+    }
+
     // Analytics
     LaunchedEffect(Unit) {
         delay(100)

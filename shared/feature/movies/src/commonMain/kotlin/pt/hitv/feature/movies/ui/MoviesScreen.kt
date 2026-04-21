@@ -96,6 +96,16 @@ fun MoviesScreen(
         viewModel.fetchContinueWatchingMovies()
     }
 
+    // Drive the search-result map. The original Android project does this in
+    // MobileMoviesLayout.kt — every time the query OR the available categories
+    // change, ask the VM to recompute `searchMatchedCategories` and
+    // `searchResultMovies`. Without this call, typing in the search box
+    // updates `currentSearchQuery` but the results map stays empty and the
+    // UI shows nothing.
+    LaunchedEffect(searchQuery, uiState.categories) {
+        viewModel.updateSearchQueryWithCategories(searchQuery, uiState.categories)
+    }
+
     // Analytics
     LaunchedEffect(Unit) {
         delay(100)

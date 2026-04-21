@@ -19,13 +19,43 @@ CREATE TABLE Movie (
 
 CREATE UNIQUE INDEX movie_stream_unique ON Movie(streamId, categoryCreatorId, userId);
 
--- FTS4 virtual table for fast text search (standalone, no content sync)
+-- FTS4 virtual table for fast text search (standalone, no content sync).
+-- Mirrored from the Movie table via the three triggers below — without those
+-- triggers the index stays empty and `searchFts` returns nothing, surfacing
+-- as "no matches" in the Movies search UI.
 CREATE VIRTUAL TABLE Movie_fts USING fts4(
     name,
     streamId,
     nameNormalized,
     tokenize=unicode61
 );
+
+-- Auto-mirror Movie -> Movie_fts. Ports the migration triggers from the
+-- original Android project (DatabaseMigrations.kt v15 -> v16). The original
+-- also stored a `nameNormalized` column (name with spaces stripped, for
+-- prefix queries on multi-word titles), but the SQLDelight 2.x grammar
+-- can't parse `REPLACE(col, ' ', '')` inside a trigger body — `REPLACE`
+-- collides with the conflict-resolution keyword. Storing `name` twice in
+-- the same column gets us most of the way there; leaving nameNormalized
+-- empty doesn't break any current query (we only MATCH on the default
+-- column, which is `name`).
+CREATE TRIGGER Movie_fts_insert AFTER INSERT ON Movie
+BEGIN
+    INSERT INTO Movie_fts(docid, name, streamId, nameNormalized)
+    VALUES (new.movieId, new.name, new.streamId, new.name);
+END;
+
+CREATE TRIGGER Movie_fts_update AFTER UPDATE ON Movie
+BEGIN
+    DELETE FROM Movie_fts WHERE docid = old.movieId;
+    INSERT INTO Movie_fts(docid, name, streamId, nameNormalized)
+    VALUES (new.movieId, new.name, new.streamId, new.name);
+END;
+
+CREATE TRIGGER Movie_fts_delete AFTER DELETE ON Movie
+BEGIN
+    DELETE FROM Movie_fts WHERE docid = old.movieId;
+END;
 
 -- ==================== Queries ====================
 

@@ -28,13 +28,38 @@ CREATE TABLE TvShow (
 
 CREATE UNIQUE INDEX tvshow_unique ON TvShow(series_id, category_id, userId);
 
--- FTS4 virtual table for fast text search (standalone, no content sync)
+-- FTS4 virtual table for fast text search (standalone, no content sync).
+-- Mirrored from the TvShow table via the three triggers below — without those
+-- triggers the index stays empty and `searchFts` returns nothing, surfacing
+-- as "no matches" in the Series search UI.
 CREATE VIRTUAL TABLE TvShow_fts USING fts4(
     name,
     series_id,
     nameNormalized,
     tokenize=unicode61
 );
+
+-- Auto-mirror TvShow -> TvShow_fts. Same SQLDelight-grammar caveat as
+-- Movie_fts above — `REPLACE(...)` isn't accepted inside a trigger body
+-- in SQLDelight 2.x, so the nameNormalized column just stores the name
+-- as-is. COALESCE because TvShow.name is nullable.
+CREATE TRIGGER TvShow_fts_insert AFTER INSERT ON TvShow
+BEGIN
+    INSERT INTO TvShow_fts(docid, name, series_id, nameNormalized)
+    VALUES (new.tvShowId, COALESCE(new.name, ''), new.series_id, COALESCE(new.name, ''));
+END;
+
+CREATE TRIGGER TvShow_fts_update AFTER UPDATE ON TvShow
+BEGIN
+    DELETE FROM TvShow_fts WHERE docid = old.tvShowId;
+    INSERT INTO TvShow_fts(docid, name, series_id, nameNormalized)
+    VALUES (new.tvShowId, COALESCE(new.name, ''), new.series_id, COALESCE(new.name, ''));
+END;
+
+CREATE TRIGGER TvShow_fts_delete AFTER DELETE ON TvShow
+BEGIN
+    DELETE FROM TvShow_fts WHERE docid = old.tvShowId;
+END;
 
 -- ==================== Queries ====================
 
