@@ -364,6 +364,10 @@ fun SeriesScreen(
             return@Column
         }
 
+    val searchActive = searchQuery.isNotBlank()
+    val searchMatchedCategories = seriesUiState.searchMatchedCategories
+    val searchResultSeries = seriesUiState.searchResultSeries
+
     // Main content - home feed layout
     LazyColumn(
         state = listState,
@@ -373,6 +377,33 @@ fun SeriesScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
+        if (searchActive) {
+            if (searchMatchedCategories.isEmpty()) {
+                item(key = "__search_empty") {
+                    androidx.compose.material3.Text(
+                        text = "No series found for \"$searchQuery\"",
+                        color = themeColors.textColor.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            } else {
+                items(searchMatchedCategories.size, key = { "search_${searchMatchedCategories[it].categoryId}" }) { index ->
+                    val category = searchMatchedCategories[index]
+                    val series = searchResultSeries[category.categoryId.toString()].orEmpty()
+                    if (series.isNotEmpty()) {
+                        CategorySeriesSection(
+                            categoryTitle = category.categoryName,
+                            series = series,
+                            favoriteIds = favoriteIds,
+                            onSeriesClicked = onSeriesClicked,
+                            onViewAllClicked = { onNavigateToCategory(category.categoryId.toString(), category.categoryName) }
+                        )
+                    }
+                }
+            }
+            return@LazyColumn
+        }
+
         // "All" section — first item, matches original
         item(key = "all_section") {
             val allFilterId = "All"

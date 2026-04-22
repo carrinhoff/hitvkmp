@@ -363,6 +363,13 @@ fun MoviesScreen(
             return@Column
         }
 
+    // When a search is active the UI swaps to a filtered list of matching
+    // categories with movies from `searchResultMovies` (original
+    // MobileMoviesLayout pattern). Otherwise we render the normal home feed.
+    val searchActive = searchQuery.isNotBlank()
+    val searchMatchedCategories = uiState.searchMatchedCategories
+    val searchResultMovies = uiState.searchResultMovies
+
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -371,6 +378,33 @@ fun MoviesScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
+        if (searchActive) {
+            if (searchMatchedCategories.isEmpty()) {
+                item(key = "__search_empty") {
+                    androidx.compose.material3.Text(
+                        text = "No movies found for \"$searchQuery\"",
+                        color = themeColors.textColor.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            } else {
+                items(searchMatchedCategories.size, key = { "search_${searchMatchedCategories[it].categoryId}" }) { index ->
+                    val category = searchMatchedCategories[index]
+                    val movies = searchResultMovies[category.categoryId.toString()].orEmpty()
+                    if (movies.isNotEmpty()) {
+                        CategoryMovieSection(
+                            categoryTitle = category.categoryName,
+                            movies = movies,
+                            favoriteIds = favoriteIds,
+                            onMovieClicked = onMovieClicked,
+                            onViewAllClicked = { onNavigateToCategory(category.categoryId.toString(), category.categoryName) }
+                        )
+                    }
+                }
+            }
+            return@LazyColumn
+        }
+
         // "All" section — first item, matches original MobileMoviesCategoryGrid
         item(key = "all_section") {
             val allMovies = uiState.categoryMoviesMap[MOVIE_FILTER_ALL]
