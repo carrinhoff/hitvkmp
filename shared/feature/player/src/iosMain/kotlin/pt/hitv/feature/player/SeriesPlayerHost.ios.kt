@@ -120,6 +120,9 @@ private fun SeriesPlayerHostContent(
     // AVPlayer doesn't honour pre-`readyToPlay` seeks reliably.
     var pendingResumeMs by remember { mutableLongStateOf(initialResumeForIndex(episodes, initialEpisodeIndex)) }
     var resumed by remember { mutableStateOf(pendingResumeMs <= 0L) }
+    // Retry counter for AVPlayerItemStatusFailed, mirrors ChannelPlayerHost.
+    var retryCount by remember { mutableIntStateOf(0) }
+    val maxRetries = 3
 
     DisposableEffect(avPlayer) {
         val token: Any? = avPlayer.addPeriodicTimeObserverForInterval(
@@ -141,8 +144,22 @@ private fun SeriesPlayerHostContent(
                                     CMTimeMakeWithSeconds(pendingResumeMs / 1000.0, preferredTimescale = 1000)
                                 )
                             }
+                            retryCount = 0
                         }
-                        AVPlayerItemStatusFailed -> isBuffering = false
+                        AVPlayerItemStatusFailed -> {
+                            isBuffering = false
+                            // Auto-retry the same episode up to 3 times with linear
+                            // backoff, matches the ChannelPlayerHost retry loop.
+                            // Without this, a transient hiccup permanently stalls
+                            // the episode with no recovery path.
+                            if (retryCount < maxRetries) {
+                                retryCount++
+                                coroutineScope.launch {
+                                    delay(1000L * retryCount)
+                                    playEpisode(avPlayer, preferencesHelper, episodes, currentEpisodeIndex, { episodeTitle = it }, {})
+                                }
+                            }
+                        }
                         else -> isBuffering = true
                     }
                 }
@@ -159,10 +176,12 @@ private fun SeriesPlayerHostContent(
         }
     }
 
-    // Periodic save every 5 s, matching the Android handler-based loop.
+    // Periodic save every 1 s, matching the original Android handler interval
+    // (SeriesPlayerManager.kt:75). The port was previously at 5s which lost
+    // up to five seconds of progress on app foreground/background transitions.
     LaunchedEffect(seriesId, seasonNumber) {
         while (true) {
-            delay(5_000L)
+            delay(1_000L)
             saveCurrent(viewModel, viewModel.uiState.value.episodes, currentEpisodeIndex, currentPositionMs, durationMs)
         }
     }

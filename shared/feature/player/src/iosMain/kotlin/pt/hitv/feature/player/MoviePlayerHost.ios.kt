@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,6 +105,15 @@ private fun MoviePlayerHostContent(
     var currentPositionMs by remember { mutableLongStateOf(startPositionMs.coerceAtLeast(0L)) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var resumed by remember { mutableStateOf(startPositionMs <= 0L) }
+    // One-shot latch for the finish-save. Mirrors Android's Player.STATE_ENDED
+    // handler (MoviePlayerActivity:840) which sets the position to 0 so the
+    // row doesn't keep showing "continue watching" after the movie finishes.
+    var finishSaved by remember { mutableStateOf(false) }
+    // Retry counter for AVPlayerItemStatusFailed — matches the ChannelPlayerHost
+    // retry logic. Without this, a transient network error on load permanently
+    // stalls the UI because iOS has no auto-retry.
+    var retryCount by remember { mutableIntStateOf(0) }
+    val maxRetries = 3
 
     DisposableEffect(avPlayer) {
         val token: Any? = avPlayer.addPeriodicTimeObserverForInterval(
@@ -121,17 +131,38 @@ private fun MoviePlayerHostContent(
                     when (item.status) {
                         AVPlayerItemStatusReadyToPlay -> {
                             isBuffering = item.playbackBufferEmpty || !item.playbackLikelyToKeepUp
-                            // One-shot resume seek once the timeline is loaded — AVPlayer
-                            // does NOT honour seeks issued before `readyToPlay` reliably.
                             if (!resumed) {
                                 resumed = true
                                 avPlayer.seekToTime(
                                     CMTimeMakeWithSeconds(startPositionMs / 1000.0, preferredTimescale = 1000)
                                 )
                             }
+                            retryCount = 0
                         }
-                        AVPlayerItemStatusFailed -> isBuffering = false
+                        AVPlayerItemStatusFailed -> {
+                            isBuffering = false
+                            if (retryCount < maxRetries) {
+                                retryCount++
+                                coroutineScope.launch {
+                                    delay(1000L * retryCount)
+                                    val outputFormat = preferencesHelper.getStoredTag("output").takeIf { it.isNotEmpty() }
+                                    val normalized = MediaUrlNormalizer.normalize(movieUrl, outputFormat)
+                                    val nsUrl = NSURL.URLWithString(normalized)
+                                    if (nsUrl != null) {
+                                        avPlayer.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = nsUrl))
+                                        avPlayer.play()
+                                    }
+                                }
+                            }
+                        }
                         else -> isBuffering = true
+                    }
+                    // End-of-movie detection. Using 99% instead of exact end because
+                    // AVPlayer's `currentTime` can plateau a few hundred ms short of
+                    // `duration`. Clamped by `finishSaved` so we only save 0 once.
+                    if (!finishSaved && durationMs > 0L && currentPositionMs >= (durationMs * 99) / 100) {
+                        finishSaved = true
+                        if (streamId > 0) viewModel.savePlaybackPosition(streamId, 0L)
                     }
                 }
                 isPlaying = avPlayer.timeControlStatus == AVPlayerTimeControlStatusPlaying
