@@ -110,21 +110,23 @@ class SeriesPlayerActivity : ComponentActivity() {
 
                 SeriesPlayerScreen(
                     episodeTitle = episodeTitle.value,
-                    isBuffering = isBuffering.value,
-                    isPlaying = isPlaying.value,
-                    currentPositionMs = currentPositionMs.longValue,
-                    durationMs = durationMs.longValue,
                     hasNextEpisode = currentEpisodeIndex.intValue < episodes.size - 1,
                     hasPreviousEpisode = currentEpisodeIndex.intValue > 0,
                     sleepTimerManager = sleepTimerManager,
+                    // `useController = true` flips on ExoPlayer's native PlayerView
+                    // controller (scrubber, play/pause, time, subtitle menu, cast).
+                    // Matches the original hitv project — the custom Compose overlay
+                    // we had before hid features the user expected and looked wrong.
                     playerViewFactory = { modifier ->
                         AndroidView(
                             factory = { ctx ->
                                 PlayerView(ctx).apply {
                                     playerView = this
-                                    useController = false
+                                    useController = true
+                                    controllerShowTimeoutMs = 5000
+                                    controllerHideOnTouch = true
                                     this.resizeMode = this@SeriesPlayerActivity.resizeMode
-                                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                     keepScreenOn = true
                                     player = exoPlayer
@@ -135,8 +137,6 @@ class SeriesPlayerActivity : ComponentActivity() {
                         )
                     },
                     onBack = { finish() },
-                    onPlayPause = { exoPlayer?.let { it.playWhenReady = !it.isPlaying } },
-                    onSeekTo = { exoPlayer?.seekTo(it) },
                     onNextEpisode = {
                         val nextIdx = currentEpisodeIndex.intValue + 1
                         if (nextIdx < episodes.size) {

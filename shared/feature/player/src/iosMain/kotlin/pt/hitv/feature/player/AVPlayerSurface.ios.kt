@@ -23,21 +23,23 @@ import platform.AVKit.AVPlayerViewController
  * lambda only fires on recomposition (not layout). AVPlayerViewController owns
  * its own auto-layout so the video always fills the host bounds.
  *
- * `showsPlaybackControls = false`: the channel player overlay supplies its own
- * Compose controls (top bar, sidebar, sleep timer). For the movie / series
- * players, the existing [PlayerHost] surface keeps the native controls — this
- * helper is for the no-native-chrome case.
+ * `showsPlaybackControls` defaults to `false` for the channel player, which
+ * supplies its own Compose controls (top bar, sidebar, sleep timer). Movie
+ * and series players pass `true` so AVKit draws its native controller
+ * (scrubber, AirPlay, 15s skip, subtitles menu, PiP) — matching what the
+ * original Android project does via ExoPlayer's `PlayerView.useController`.
  */
 @Composable
 internal fun AVPlayerSurface(
     player: AVPlayer,
     aspectMode: PlayerAspectMode,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showsPlaybackControls: Boolean = false,
 ) {
     val vc = remember(player) {
         AVPlayerViewController().apply {
             this.player = player
-            showsPlaybackControls = false
+            this.showsPlaybackControls = showsPlaybackControls
             videoGravity = aspectMode.toVideoGravity()
         }
     }

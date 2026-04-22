@@ -193,22 +193,26 @@ private fun MoviePlayerHostContent(
 
     MoviePlayerScreen(
         movieTitle = movieTitle,
-        isBuffering = isBuffering,
-        isPlaying = isPlaying,
-        currentPositionMs = currentPositionMs,
-        durationMs = durationMs,
         sleepTimerManager = sleepTimerManager,
-        playerViewFactory = { mod -> AVPlayerSurface(player = avPlayer, aspectMode = aspectMode, modifier = mod) },
+        // `showsPlaybackControls = true` tells AVPlayerViewController to render
+        // its native AVKit controller (scrubber, AirPlay, PiP, subtitles menu,
+        // 15 s skip). That replaces the custom Compose seek bar / play-pause
+        // / 10 s skip we used to draw, matching the original Android project
+        // which uses PlayerView.useController = true.
+        playerViewFactory = { mod ->
+            AVPlayerSurface(
+                player = avPlayer,
+                aspectMode = aspectMode,
+                modifier = mod,
+                showsPlaybackControls = true,
+            )
+        },
         onBack = {
             // Final save before dismiss so the resume position is fresh even if
             // DisposableEffect.onDispose is delayed by Compose teardown.
             val pos = currentPositionMs
             if (pos > 0 && streamId > 0) viewModel.savePlaybackPosition(streamId, pos)
             onClose()
-        },
-        onPlayPause = { if (isPlaying) avPlayer.pause() else avPlayer.play() },
-        onSeekTo = { posMs ->
-            avPlayer.seekToTime(CMTimeMakeWithSeconds(posMs / 1000.0, preferredTimescale = 1000))
         },
         onAspectRatioToggle = { aspectMode = aspectMode.cycle() },
         onSleepTimerSelect = { sleepTimerManager.start(it) },

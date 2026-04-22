@@ -191,21 +191,24 @@ private fun SeriesPlayerHostContent(
 
     SeriesPlayerScreen(
         episodeTitle = episodeTitle,
-        isBuffering = isBuffering,
-        isPlaying = isPlaying,
-        currentPositionMs = currentPositionMs,
-        durationMs = durationMs,
         hasNextEpisode = hasNext,
         hasPreviousEpisode = hasPrev,
         sleepTimerManager = sleepTimerManager,
-        playerViewFactory = { mod -> AVPlayerSurface(player = avPlayer, aspectMode = aspectMode, modifier = mod) },
+        // Native AVKit controls handle scrub / play-pause / AirPlay / PiP /
+        // subtitles — matches the original Android project using ExoPlayer's
+        // PlayerView.useController. The Compose top bar only renders the
+        // chrome on top (back / title / prev / next / aspect / sleep).
+        playerViewFactory = { mod ->
+            AVPlayerSurface(
+                player = avPlayer,
+                aspectMode = aspectMode,
+                modifier = mod,
+                showsPlaybackControls = true,
+            )
+        },
         onBack = {
             saveCurrent(viewModel, episodes, currentEpisodeIndex, currentPositionMs, durationMs)
             onClose()
-        },
-        onPlayPause = { if (isPlaying) avPlayer.pause() else avPlayer.play() },
-        onSeekTo = { posMs ->
-            avPlayer.seekToTime(CMTimeMakeWithSeconds(posMs / 1000.0, preferredTimescale = 1000))
         },
         onNextEpisode = {
             if (hasNext) {
