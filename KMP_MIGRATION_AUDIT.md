@@ -143,10 +143,30 @@ The workflow is committed and has run. The iOS suites are no longer hypothetical
 | `EpgStreamingLoaderIosTest` | ✅ the new `NSXMLParser` streaming path, entity decoding, control-char sanitising, a 2,000-programme document |
 | `DecompressContentIosTest` | ✅ real gzip inflation through zlib |
 | `AVPlayerTeardownIosTest` | ✅ the `onDispose` sequence the three player hosts use |
-| `AVPlayerPlaybackIosTest` | ✅ real HLS decode of Apple's bipbop stream |
+| `AVPlayerPlaybackIosTest` | ⚠️ **partially skipped** — the failure path runs; the four decode cases quarantine themselves when the sample stream is unreachable, which on the CI runner it is |
 | every `commonTest` | ✅ compiled and run against Kotlin/Native |
 | `KeychainSettingsIosTest` (5) | ⚠️ **skipped — cannot run in this host** |
 | `KeychainMigrationIosTest` (5) | ⚠️ **skipped — cannot run in this host** |
+
+**Two gaps in what CI covers, both stated so a green build is not over-read.**
+
+**HLS decode is not covered.** The four network-backed `AVPlayerPlaybackIosTest` cases fetch Apple's
+public sample stream. On the GitHub macOS runner that fails with "The certificate for this server is
+invalid" — a bare Kotlin/Native test binary has no bundle, and the fetch does not survive TLS
+validation there. They now quarantine themselves with a loud SKIPPED line rather than failing, while
+an item failing for any *other* reason still fails the build. So CI proves the plumbing compiles and
+the failure path works; it does not prove AVPlayer decoded anything. That is covered when the suite
+runs somewhere the stream is reachable — a developer machine, or the device pass.
+
+Getting to that answer took three CI rounds and one wrong turn worth recording: the first symptom was
+`status=Unknown, error=null` after 30 seconds, which looks exactly like an unreachable CDN. It was
+not. **AVFoundation delivers `AVPlayerItem.status` on the main queue, and Kotlin/Native's
+`runBlocking` drives its own event loop rather than `NSRunLoop`** — so polling with `delay()` held the
+main thread and never let AVFoundation dispatch. Nothing was servicing the run loop, so the item
+could not even begin loading. The clue was that the test asserting *failure* against `127.0.0.1:1`
+passed throughout. Pumping the run loop with `runUntilDate` turned the symptom into the real,
+diagnosable TLS error. **That trap generalises: any code awaiting an AVFoundation callback from
+inside `runBlocking` on iOS will hang the same way.**
 
 **The Keychain path is not covered by CI, and a green build does not imply it works.**
 
