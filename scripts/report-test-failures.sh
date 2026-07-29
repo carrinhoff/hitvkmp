@@ -14,7 +14,13 @@ set -uo pipefail
 
 TASK="${1:?usage: report-test-failures.sh <test-results-dir-name>}"
 
-mapfile -t files < <(find . -path "*test-results/${TASK}/*.xml" -not -path '*/node_modules/*' 2>/dev/null)
+# NOTE: `mapfile` is bash 4+, and macOS ships bash 3.2 — a script using it dies with
+# "mapfile: command not found" the moment it runs on a macos runner. Read into the array
+# with a while-loop instead, which works on both.
+files=()
+while IFS= read -r line; do
+  [ -n "$line" ] && files+=("$line")
+done < <(find . -path "*test-results/${TASK}/*.xml" -not -path '*/node_modules/*' 2>/dev/null)
 
 if [ "${#files[@]}" -eq 0 ]; then
   echo "::warning::No test-result XML found for ${TASK} — the task may have failed before running any test."

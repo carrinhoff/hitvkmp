@@ -14,8 +14,13 @@ status=0
 fail() { echo "::error::$1"; status=1; }
 
 # Directories whose sources compile for every target.
-mapfile -t files < <(find shared -type d -name commonTest -not -path '*/build/*' -print0 \
-  | xargs -0 -I{} find {} -name '*.kt' 2>/dev/null)
+# NOTE: `mapfile` is bash 4+, and macOS ships bash 3.2 — a script using it dies with
+# "mapfile: command not found" the moment it runs on a macos runner. Read into the array
+# with a while-loop instead, which works on both.
+files=()
+while IFS= read -r line; do
+  [ -n "$line" ] && files+=("$line")
+done < <(find shared -type d -name commonTest -not -path '*/build/*' -exec find {} -name '*.kt' \; 2>/dev/null)
 
 if [ "${#files[@]}" -eq 0 ]; then
   echo "No commonTest sources found — nothing to check."

@@ -17,7 +17,12 @@ set -uo pipefail
 
 # Source that ships to users. Excludes build output and test sources (fixtures may legitimately
 # contain credential-shaped strings).
-mapfile -t FILES < <(
+# NOTE: `mapfile` is bash 4+, and macOS ships bash 3.2. Use a while-loop so this stays runnable
+# on a macos runner as well as ubuntu.
+FILES=()
+while IFS= read -r line; do
+  [ -n "$line" ] && FILES+=("$line")
+done < <(
   find shared androidApp iosApp -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.swift' \) \
     -not -path '*/build/*' \
     -not -path '*/commonTest/*' \

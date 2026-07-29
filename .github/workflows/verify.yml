@@ -89,6 +89,7 @@ jobs:
 
       - name: Report unit test failures
         if: failure()
+        continue-on-error: true
         run: bash scripts/report-test-failures.sh testDebugUnitTest
 
       - name: Upload test reports
@@ -161,7 +162,11 @@ jobs:
       - name: Report iOS test failures
         # Annotations are readable on a public repo without admin rights; raw logs and artifacts
         # are not. Without this a red build says only "Process completed with exit code 1".
+        #
+        # continue-on-error because this is a diagnostic: when it broke, its own failure replaced
+        # the failure it was meant to explain. A reporting bug must never hide the real one.
         if: failure()
+        continue-on-error: true
         run: bash scripts/report-test-failures.sh iosSimulatorArm64Test
 
       - name: Link iOS framework
@@ -289,6 +294,7 @@ jobs:
 
       - name: Report device test failures
         if: failure()
+        continue-on-error: true
         run: bash scripts/report-test-failures.sh connectedDebugAndroidTest
 
       - name: Upload device test reports
