@@ -3,9 +3,6 @@
 package pt.hitv.feature.player
 
 import kotlinx.cinterop.CValue
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemStatusFailed
@@ -20,6 +17,10 @@ import platform.AVFoundation.removeTimeObserver
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
 import platform.CoreMedia.CMTime
+import platform.Foundation.NSDate
+import platform.Foundation.dateWithTimeIntervalSinceNow
+import platform.Foundation.NSRunLoop
+import platform.Foundation.runUntilDate
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.NSURL
@@ -39,12 +40,25 @@ import kotlin.test.assertTrue
  * the periodic time observer behave as assumed on a working stream, so the failure branch really
  * does mean failure.
  *
+ * ## Why the wait pumps the run loop
+ *
+ * The first CI run of this suite failed all four network cases with `status=Unknown, error=null`
+ * after a 30-second wait — which reads exactly like an unreachable CDN and was not. AVFoundation
+ * delivers `AVPlayerItem.status` on the main queue, and Kotlin/Native's `runBlocking` drives its
+ * own event loop rather than `NSRunLoop`, so polling with `delay()` held the main thread without
+ * ever letting AVFoundation dispatch anything. The item could not load because nothing was
+ * servicing the run loop.
+ *
+ * `waitFor` now re-enters the run loop with `runUntilDate` between polls. That is also why these
+ * tests no longer use `runBlocking`: there is nothing left to suspend on, and its presence was what
+ * caused the problem.
+ *
  * ## Network dependency, stated plainly
  *
- * This test hits Apple's long-standing public HLS sample. That makes it the one test here that can
- * fail for reasons unrelated to this codebase. It is deliberately **not** written to swallow that:
- * a soft-pass on network trouble would make it indistinguishable from a test that never ran, which
- * is the failure mode this audit spent its time removing. If it goes flaky in CI, quarantine it
+ * This test hits Apple's long-standing public HLS sample, so it is the one test here that can fail
+ * for reasons unrelated to this codebase. It is deliberately **not** written to swallow that: a
+ * soft-pass on network trouble would make it indistinguishable from a test that never ran, which is
+ * the failure mode this audit spent its time removing. If it genuinely goes flaky, quarantine it
  * explicitly rather than making it lie.
  */
 class AVPlayerPlaybackIosTest {
@@ -62,15 +76,32 @@ class AVPlayerPlaybackIosTest {
         return AVPlayer(playerItem = AVPlayerItem(uRL = url))
     }
 
-    /** Polls until [predicate] holds or the timeout elapses. Returns whether it held. */
-    private suspend fun waitFor(timeoutMs: Long, predicate: () -> Boolean): Boolean =
-        withTimeoutOrNull(timeoutMs) {
-            while (!predicate()) delay(pollInterval)
-            true
-        } ?: false
+    /**
+     * Polls until [predicate] holds or the timeout elapses, **servicing the main run loop** while
+     * it waits. Returns whether it held.
+     *
+     * The run-loop pump is the whole point. AVFoundation delivers `AVPlayerItem.status` changes on
+     * the main queue, and Kotlin/Native's `runBlocking` drives its own event loop rather than
+     * `NSRunLoop` — so a `delay()`-based poll blocks the main thread without ever letting
+     * AVFoundation dispatch anything. The item then sits at `AVPlayerItemStatusUnknown` with a null
+     * error until the timeout, which reads exactly like an unreachable stream and is not: the item
+     * never got the chance to load at all.
+     *
+     * `runUntilDate` re-enters the run loop for a slice, letting those callbacks land.
+     */
+    private fun waitFor(timeoutMs: Long, predicate: () -> Boolean): Boolean {
+        val steps = (timeoutMs / pollInterval).toInt().coerceAtLeast(1)
+        repeat(steps) {
+            if (predicate()) return true
+            NSRunLoop.mainRunLoop().runUntilDate(
+                NSDate.dateWithTimeIntervalSinceNow(pollInterval / 1000.0)
+            )
+        }
+        return predicate()
+    }
 
     @Test
-    fun `reaches readyToPlay and reports a duration`() = runBlocking {
+    fun `reaches readyToPlay and reports a duration`() {
         val avPlayer = player()
         try {
             val ready = waitFor(readyTimeoutMs) {
@@ -94,7 +125,7 @@ class AVPlayerPlaybackIosTest {
     }
 
     @Test
-    fun `playback advances the clock`() = runBlocking {
+    fun `playback advances the clock`() {
         val avPlayer = player()
         try {
             assertTrue(
@@ -120,7 +151,7 @@ class AVPlayerPlaybackIosTest {
     }
 
     @Test
-    fun `the periodic time observer actually fires during playback`() = runBlocking {
+    fun `the periodic time observer actually fires during playback`() {
         // The three hosts derive ALL playback state from this callback. If it does not fire the
         // way the port assumes, buffering/ready/error handling silently never runs.
         val avPlayer = player()
@@ -148,7 +179,7 @@ class AVPlayerPlaybackIosTest {
     }
 
     @Test
-    fun `seeking moves the playhead`() = runBlocking {
+    fun `seeking moves the playhead`() {
         // Backs the resume-position path: movie and series playback seek to a saved offset once
         // the item reports ready.
         val avPlayer = player()
@@ -173,7 +204,7 @@ class AVPlayerPlaybackIosTest {
     }
 
     @Test
-    fun `an unreachable stream reports failed rather than hanging silently`() = runBlocking {
+    fun `an unreachable stream reports failed rather than hanging silently`() {
         // The watchdog exists because this case can leave the UI stuck. Confirm AVPlayer does
         // eventually surface `failed` for a host that refuses the connection, so the retry ladder
         // has something to react to — and that when it does not, the watchdog is the only net.
