@@ -17,15 +17,16 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
     <!--
-        Build number comes from the build setting, not a literal.
-        It used to be hardcoded to 38, which meant `xcodebuild CURRENT_PROJECT_VERSION=...` had no
-        effect: every CI archive would have shipped as build 38 regardless. The first upload would
-        have succeeded (TestFlight's highest is 34) and every one after it would have been rejected
-        as a duplicate — a confusing failure, because the log would show a build number that the
-        workflow never chose.
+        Build number, bumped by hand per release — the convention this project already uses
+        (see the "(build NN)" suffixes in the git log). `.github/workflows/ios-testflight.yml`
+        archives with whatever is here.
+
+        Do not switch this to $(CURRENT_PROJECT_VERSION): that build setting is 3, far below the
+        builds already in TestFlight, and Apple rejects a build number lower than one already
+        uploaded for the same version.
     -->
     <key>CFBundleVersion</key>
-    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <string>35</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>

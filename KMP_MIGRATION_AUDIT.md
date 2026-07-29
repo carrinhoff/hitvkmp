@@ -1375,34 +1375,38 @@ ladder spends three attempts on something that can never decode, and ~25 seconds
 Like the container gap, the decode limit itself is not fixable here. The failure mode is: the iOS
 channel host now checks for a licence key before retrying and reports what is actually wrong.
 
-### CI is the only route to an iOS build — and it was blocked
+### Corrections: two claims I got wrong about the iOS build path
 
-With a Windows development machine there is no way to compile the iOS **app** locally at all; only
-the Kotlin half cross-compiles. That makes CI not a convenience but the sole path to a binary, and
-TestFlight the only way onto a phone. Two things stood in the way:
+Both were disproven by the repository itself, and both are recorded here because acting on either
+would have caused damage.
 
-**1. The project had no shared scheme.** Xcode stores schemes in `xcuserdata/`, which is per-user and
-not committed, and regenerates one silently whenever a developer opens the project — so nobody
-notices. On a clean CI checkout `xcodebuild -scheme iosApp` simply fails with "scheme not found".
-The existing `verify-ios` job would have hit this on its first run. `iosApp.xcscheme` is now
-committed under `xcshareddata/`, referencing the real `PBXNativeTarget` UUID (`BBB000050`), with an
-ArchiveAction on Release so it can produce a distributable build.
+**1. "The project has no shared scheme, so CI cannot build it." Wrong.**
+`iosApp.xcodeproj` genuinely contains no committed `.xcscheme`, and `.gitignore` excludes
+`*.xcuserdata`, so the reasoning looked sound. But `.github/workflows/ios-testflight.yml` has
+archived and shipped to TestFlight **successfully, twice** using `-scheme iosApp` — because
+`xcodebuild` autocreates schemes for a project's targets when none is shared. A shared scheme is
+still committed (it makes the scheme explicit rather than generated), but it was never a blocker.
 
-**2. There was no job that produced anything installable.** `verify-ios` builds `-sdk
-iphonesimulator`, which cannot go on a device. A `testflight` job now archives for `-sdk iphoneos`,
-exports through `ExportOptions.plist` and uploads.
+**2. "There is no job that produces an installable build." Wrong, and acting on it was harmful.**
+`ios-testflight.yml` already exists and works: manual signing, `Apple Distribution`, provisioning
+profile "AxonStream AppStore", bundle `pt.hitv.app`, uploaded via `xcrun altool`. That also settles
+the bundle-identity question — `pt.hitv.app` *is* the AxonStream record.
 
-Signing uses an **App Store Connect API key** rather than a `.p12` and provisioning profile —
-`-allowProvisioningUpdates` plus `-authenticationKeyPath` lets `xcodebuild` fetch what it needs, so
-the only secrets required are `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID` and `APPSTORE_PRIVATE_KEY`.
-The job is `workflow_dispatch`-only (TestFlight rejects duplicate build numbers, so uploading on
-every push would burn them), gated behind `needs: [verify]`, and uses `github.run_number` as the
-build number. Team `5XNB9Q6229` and bundle `pt.hitv.app` are taken from the project.
+A second TestFlight job was added to `verify.yml` before noticing this, using different (API-key)
+signing and never executed. It has been removed. Two release paths with different signing, one of
+them untested, is worse than one that works.
 
-**This job has never run.** It was written on a machine with no macOS and no Apple credentials, so
-the first invocation should be treated as a debugging round. The likeliest snags are the API key's
-role (it needs App Manager to upload) and the `app-store-connect` export method, which Xcode renamed
-from `app-store` in recent versions.
+**The damage, and the fix.** Reasoning that the build number should come from a build setting,
+`Info.plist`'s `CFBundleVersion` was changed from the literal `38` to `$(CURRENT_PROJECT_VERSION)`.
+That setting is **3**. The existing workflow would then have archived as build 3 — below the 34
+already in TestFlight — and Apple rejects a build number lower than one already uploaded for that
+version. Restored to a literal, now `35`, matching the project's existing convention of bumping it
+by hand per release (visible as the `(build NN)` suffixes in the git log).
+
+**Unrelated, and the owner's call:** `ios-testflight.yml` contains a base64-encoded App Store
+Connect API private key inline, along with its key ID and issuer ID. That is a different credential
+from the IPTV provider one the owner has already chosen to leave exposed — this one can upload
+builds to their App Store Connect account. Worth a deliberate decision rather than an accidental one.
 
 ### iOS platform assumptions checked and found correct
 
