@@ -87,6 +87,10 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Report unit test failures
+        if: failure()
+        run: bash scripts/report-test-failures.sh testDebugUnitTest
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -154,6 +158,12 @@ jobs:
         run: ./gradlew iosSimulatorArm64Test
 
       # Proves the Xcode-facing link step works, independently of signing/TestFlight.
+      - name: Report iOS test failures
+        # Annotations are readable on a public repo without admin rights; raw logs and artifacts
+        # are not. Without this a red build says only "Process completed with exit code 1".
+        if: failure()
+        run: bash scripts/report-test-failures.sh iosSimulatorArm64Test
+
       - name: Link iOS framework
         run: ./gradlew :shared:umbrella:linkDebugFrameworkIosSimulatorArm64
 
@@ -276,6 +286,10 @@ jobs:
           disable-animations: true
           script: |
             ./gradlew :shared:core:database:connectedDebugAndroidTest                       :shared:core:data:connectedDebugAndroidTest
+
+      - name: Report device test failures
+        if: failure()
+        run: bash scripts/report-test-failures.sh connectedDebugAndroidTest
 
       - name: Upload device test reports
         if: always()
