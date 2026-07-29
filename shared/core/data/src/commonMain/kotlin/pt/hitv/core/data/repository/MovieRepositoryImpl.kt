@@ -9,6 +9,8 @@ import app.cash.paging.PagingSourceLoadResult
 import app.cash.paging.PagingSourceLoadResultPage
 import app.cash.paging.PagingSourceLoadResultError
 import app.cash.paging.PagingState
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.*
@@ -23,6 +25,7 @@ import pt.hitv.core.data.mapper.toMovie
 import pt.hitv.core.data.paging.*
 import pt.hitv.core.data.util.CachePolicy
 import pt.hitv.core.data.util.FetchTimeTracker
+import app.cash.sqldelight.db.SqlDriver
 import pt.hitv.core.data.util.SearchUtils
 import pt.hitv.core.data.util.networkBoundResourceWithMapper
 import pt.hitv.core.database.CategoryVodQueries
@@ -45,7 +48,8 @@ class MovieRepositoryImpl(
     private val categoryVodQueries: CategoryVodQueries,
     private val movieInfoQueries: MovieInfoQueries,
     private val database: HitvDatabase,
-    private val preferencesHelper: PreferencesHelper
+    private val preferencesHelper: PreferencesHelper,
+    private val driver: SqlDriver
 ) : MovieRepository {
 
     private val userId: Int get() = preferencesHelper.getUserId()
@@ -123,12 +127,16 @@ class MovieRepositoryImpl(
     }
 
     override suspend fun getFavoritesMovie(): Flow<List<Movie>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val movies = movieQueries.selectFavorites(userId.toLong())
-                .executeAsList()
-                .map { it.toMovie() }
-            emit(movies)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                movieQueries.selectFavorites(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toMovie() } }
+            )
+        }
     }
 
     override suspend fun saveRecentlyViewedMovie(movie: Movie) {
@@ -136,12 +144,16 @@ class MovieRepositoryImpl(
     }
 
     override suspend fun getRecentlyViewedMovies(): Flow<List<Movie>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val movies = movieQueries.selectRecentlyViewed(userId.toLong())
-                .executeAsList()
-                .map { it.toMovie() }
-            emit(movies)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                movieQueries.selectRecentlyViewed(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toMovie() } }
+            )
+        }
     }
 
     override fun getMoviesPager(
@@ -167,7 +179,7 @@ class MovieRepositoryImpl(
                     searchQuery = searchQuery,
                     sortOrder = sortOrder,
                     isAscending = isAscending
-                )
+                ).also { it.invalidateOnChangeTo(driver, PagedTables.MOVIE) }
             }
         ).flow
     }
@@ -332,12 +344,16 @@ class MovieRepositoryImpl(
     }
 
     override fun getAllMovieCategories(): Flow<List<Category>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val categories = categoryVodQueries.selectVisibleSorted(userId.toLong())
-                .executeAsList()
-                .map { it.toCategory() }
-            emit(categories)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                categoryVodQueries.selectVisibleSorted(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toCategory() } }
+            )
+        }
     }
 
     override suspend fun getMoviesByCategory(categoryId: String, limit: Int): List<Movie> {
@@ -478,7 +494,7 @@ class MovieRepositoryImpl(
     override suspend fun getContinueWatchingMovies(limit: Int): List<Movie> {
         return withContext(Dispatchers.IO) {
             try {
-                movieQueries.selectContinueWatching(userId.toLong(), limit.toLong())
+                movieQueries.selectContinueWatching(userId.toLong(), limit.toLong(), 0L)
                     .executeAsList()
                     .map { it.toMovie() }
             } catch (e: Exception) {
@@ -530,7 +546,7 @@ private class MoviePagingSource(
                 }
 
                 categoryId == MOVIE_FILTER_CONTINUE_WATCHING -> {
-                    movieQueries.selectContinueWatching(userId.toLong(), pageSize.toLong())
+                    movieQueries.selectContinueWatching(userId.toLong(), pageSize.toLong(), offset.toLong())
                         .executeAsList().map { it.toMovie() }
                 }
 

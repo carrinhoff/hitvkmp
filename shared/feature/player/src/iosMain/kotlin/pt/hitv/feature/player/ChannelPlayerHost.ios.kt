@@ -25,6 +25,7 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.setActive
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
+import pt.hitv.feature.player.AvFoundationSupport
 import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
@@ -47,6 +48,7 @@ import platform.UIKit.UIViewController
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.feature.player.composables.ChannelPlayerScreen
 import pt.hitv.feature.player.helpers.ChannelNavigationHelper
+import pt.hitv.feature.player.util.PlaybackStartWatchdog
 import pt.hitv.feature.player.util.SleepTimerManager
 
 /**
@@ -135,12 +137,28 @@ private fun ChannelPlayerHostContent(
     // `ChannelPlayerActivity.observePlaybackTriggers` → `startPlayback(url)`.
     var retryCount by remember { mutableStateOf(0) }
     val maxRetries = 3
+
+    // Escape hatch for "the stream never starts". The periodic time observer below only runs as
+    // the item's timeline advances, so an item that fails during load can leave the user on a
+    // buffering spinner forever with no error and no retry. Armed on every startPlayback,
+    // cancelled the moment the item reports ready. See PlaybackStartWatchdog's KDoc.
+    val startWatchdog = remember {
+        PlaybackStartWatchdog(scope = coroutineScope) {
+            viewModel.setPlaybackError(
+                "The channel did not start playing. The stream may be offline.",
+                maxRetries,
+                maxRetries
+            )
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.uiState.map { it.currentChannelUrl }.distinctUntilChanged().collect { url ->
             if (url.isNotEmpty()) {
                 retryCount = 0
                 startPlayback(avPlayer, url, preferencesHelper)
                 viewModel.setPlaybackBuffering()
+                startWatchdog.arm()
             }
         }
     }
@@ -166,17 +184,28 @@ private fun ChannelPlayerHostContent(
                         } else {
                             viewModel.setPlaybackReady()
                             retryCount = 0
+                            // Playback is confirmed running — stand the watchdog down.
+                            startWatchdog.cancel()
                         }
                     }
                     AVPlayerItemStatusFailed -> {
-                        if (retryCount < maxRetries) {
+                        // A ClearKey-protected stream can never decode here — AVFoundation does
+                        // FairPlay only — so retrying just delays an inaccurate message by ~25s.
+                        val drmMessage = AvFoundationSupport.drmUnsupportedMessage(licenseKey)
+                        if (drmMessage != null) {
+                            startWatchdog.cancel()
+                            viewModel.setPlaybackError(drmMessage, retryCount, maxRetries)
+                        } else if (retryCount < maxRetries) {
                             retryCount++
                             viewModel.setAutoRetrying(retryCount, maxRetries)
                             coroutineScope.launch {
                                 delay(1000L * retryCount)
                                 startPlayback(avPlayer, viewModel.uiState.value.currentChannelUrl, preferencesHelper)
+                                // Each retry gets its own deadline.
+                                startWatchdog.arm()
                             }
                         } else {
+                            startWatchdog.cancel()
                             viewModel.setPlaybackError(
                                 item.error?.localizedDescription ?: "Playback error",
                                 retryCount,
@@ -198,6 +227,7 @@ private fun ChannelPlayerHostContent(
             }
         )
         onDispose {
+            startWatchdog.cancel()
             token?.let { avPlayer.removeTimeObserver(it) }
             avPlayer.pause()
             avPlayer.replaceCurrentItemWithPlayerItem(null)
@@ -244,6 +274,7 @@ private fun ChannelPlayerHostContent(
             retryCount = 0
             startPlayback(avPlayer, viewModel.uiState.value.currentChannelUrl, preferencesHelper)
             viewModel.setPlaybackBuffering()
+            startWatchdog.arm()
         },
         onChannelClick = { channel -> viewModel.onChannelSelected(channel) },
         onNavigateNext = {
@@ -271,10 +302,17 @@ private fun startPlayback(
     preferencesHelper: PreferencesHelper
 ) {
     if (url.isBlank()) return
-    val outputFormat = preferencesHelper.getStoredTag("output").takeIf { it.isNotEmpty() }
-    val normalized = MediaUrlNormalizer.normalize(url, outputFormat)
+    // Live on iOS must be HLS — see normalizeLiveForAvPlayer. The `output` preference is
+    // deliberately not consulted: it is empty for M3U accounts and frequently "ts", either of
+    // which hands AVPlayer a stream it cannot decode.
+    val normalized = MediaUrlNormalizer.normalizeLiveForAvPlayer(url)
     val nsUrl = NSURL.URLWithString(normalized) ?: return
     val item = AVPlayerItem(uRL = nsUrl)
+    // Honour the user's "Live Buffer Size" setting — see applyLiveBufferProfile. Until now this
+    // preference was stored but never read by any player on either platform.
+    item.applyLiveBufferProfile(
+        preferencesHelper.getStoredTag("live_buffer").takeIf { it.isNotEmpty() }
+    )
     player.replaceCurrentItemWithPlayerItem(item)
     player.play()
 }

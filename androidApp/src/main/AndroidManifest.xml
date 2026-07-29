@@ -45,16 +45,28 @@
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Hitv" />
 
+        <!--
+            VOD players are locked to landscape, matching the original
+            (hitv/app/src/main/AndroidManifest.xml:45-60, which sets
+            android:screenOrientation="landscape" on both). The port had dropped it, so a movie or
+            episode opened in whatever orientation the phone happened to be in — normally portrait,
+            giving a letterboxed strip of video with most of the screen black.
+
+            The live channel player is deliberately NOT locked, in the port and the original alike:
+            it has its own rotation toggle and a sidebar that uses the extra height in portrait.
+        -->
         <activity
             android:name=".player.MoviePlayerActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden"
             android:exported="false"
+            android:screenOrientation="landscape"
             android:theme="@style/Theme.Hitv" />
 
         <activity
             android:name=".player.SeriesPlayerActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden"
             android:exported="false"
+            android:screenOrientation="landscape"
             android:theme="@style/Theme.Hitv" />
 
     </application>

@@ -19,7 +19,17 @@ const val SORT_YEAR = "year"
 
 /**
  * Constants for filtering TV shows in paging queries.
- * These constants define special filter types for the TvShow paging source.
+ *
+ * **These deliberately hold the same string values as the `MOVIE_FILTER_*` set above**, and the
+ * repositories branch on whichever name they happened to import. That aliasing is load-bearing:
+ * `SeriesScreen` passes [FILTER_CONTINUE_WATCHING] while `TvShowRepositoryImpl` matches on
+ * `MOVIE_FILTER_CONTINUE_WATCHING`, and it only works because the values are identical.
+ *
+ * It also hid a bug: the series repository had no Continue Watching branch at all, so "See All" on
+ * that row fell through to a category lookup and opened an empty screen, while the movie side
+ * worked. `PagingFilterConstantsTest` now pins the two sets together so drift between them fails
+ * loudly instead of silently emptying a screen. Collapsing them into one set is the real fix and
+ * touches every call site, so it is left as a follow-up.
  */
 const val FILTER_FAVORITES = "Favorites"
 const val FILTER_RECENTLY_VIEWED = "RecentlyViewed"

@@ -291,8 +291,13 @@ class StreamViewModel(
         }
     }
 
+    private var cachedChannelsJob: Job? = null
+
     fun fetchChannelsFromDB() {
-        viewModelScope.launch(Dispatchers.IO) {
+        // Observes the DB and so never completes; guarded like its siblings above so a second
+        // call replaces the collector rather than stacking one.
+        cachedChannelsJob?.cancel()
+        cachedChannelsJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.getAllChannelsFlow()
                     .catch {

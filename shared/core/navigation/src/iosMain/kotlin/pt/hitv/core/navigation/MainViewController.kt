@@ -10,6 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.ComposeUIViewController
 import org.koin.compose.koinInject
 import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.core.domain.manager.ParentalControlManager
+import pt.hitv.core.sync.BackgroundSyncBootstrapper
 import pt.hitv.core.domain.repositories.AccountManagerRepository
 import pt.hitv.core.domain.repositories.StreamRepository
 import pt.hitv.core.navigation.adaptive.AdaptiveScaffold
@@ -23,10 +25,23 @@ fun MainViewController() = ComposeUIViewController {
     val preferencesHelper: PreferencesHelper = koinInject()
     val accountManagerRepository: AccountManagerRepository = koinInject()
     val streamRepository: StreamRepository = koinInject()
+    val parentalControlManager: ParentalControlManager = koinInject()
+    val backgroundSyncBootstrapper: BackgroundSyncBootstrapper = koinInject()
 
     var bootState by remember { mutableStateOf(BootState.Checking) }
 
     LaunchedEffect(Unit) {
+        // Expire any "until app closes" parental-control session — mirrors HitvApp on Android.
+        // This had no call site anywhere, so that timeout option silently behaved as
+        // "never expires" across launches.
+        runCatching { parentalControlManager.clearSessionOnAppStart() }
+
+        // Re-arm background sync if the user enabled it. Matters more here than on Android: a
+        // BGAppRefreshTaskRequest is one-shot, and the Swift handler only chains the next one
+        // after a firing — so without this first submission after launch, background sync stays
+        // silently stopped forever rather than merely being delayed.
+        runCatching { backgroundSyncBootstrapper.reArmIfEnabled() }
+
         val userId = preferencesHelper.getUserId()
         if (userId == -1) {
             bootState = BootState.LoggedOut

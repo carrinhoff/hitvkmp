@@ -29,6 +29,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
@@ -41,6 +42,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.feature.player.PlayerConfigFactory
 import pt.hitv.core.designsystem.theme.AppThemeProvider
 import pt.hitv.feature.player.LivePlaybackState
 import pt.hitv.feature.player.LivePlayerViewModel
@@ -156,7 +158,25 @@ class ChannelPlayerActivity : ComponentActivity() {
     // --- Player creation ---
 
     private fun createPlayer() {
-        exoPlayer = ExoPlayer.Builder(this).build().apply {
+        // Honour the user's "Live Buffer Size" setting. The port stored this preference but no
+        // player read it, so the control was inert. The original wires it in the same way via
+        // PlaybackManager.createExoPlayer → PlayerConfigFactory.createLiveLoadControl.
+        val liveBuffer = PlayerConfigFactory.liveBufferFor(
+            preferencesHelper.getStoredTag("live_buffer")
+                .ifEmpty { PlayerConfigFactory.DEFAULT_LIVE_BUFFER }
+        )
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                liveBuffer.minMs,
+                liveBuffer.maxMs,
+                liveBuffer.playbackMs,
+                liveBuffer.rebufferMs
+            )
+            .build()
+
+        exoPlayer = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
+            .build().apply {
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     when (state) {
@@ -235,31 +255,20 @@ class ChannelPlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun createMediaSource(url: String): MediaSource {
-        val mediaItem = MediaItem.fromUri(url)
-        val path = android.net.Uri.parse(url).path ?: ""
-
-        val isHls = path.endsWith(".m3u8", ignoreCase = true)
-        val isDash = path.endsWith(".mpd", ignoreCase = true)
-
-        return when {
-            isHls -> {
-                HlsMediaSource.Factory(httpDataSourceFactory)
-                    .setAllowChunklessPreparation(true)
-                    .createMediaSource(mediaItem)
-            }
-            isDash -> {
-                // Would need DashMediaSource but skipping for now
-                ProgressiveMediaSource.Factory(httpDataSourceFactory)
-                    .createMediaSource(mediaItem)
-            }
-            else -> {
-                // Progressive handles .ts, .mp4, raw TS streams
-                ProgressiveMediaSource.Factory(httpDataSourceFactory)
-                    .createMediaSource(mediaItem)
-            }
-        }
-    }
+    /**
+     * Delegates to [LiveMediaSourceFactory], which picks DASH / HLS / SmoothStreaming /
+     * progressive by extension and attaches ClearKey DRM when the channel carries a licence.
+     *
+     * The inline version this replaced routed `.mpd` through `ProgressiveMediaSource` (with a
+     * "skipping for now" comment) so DASH channels never played, had no SmoothStreaming branch,
+     * and ignored `licenseKey` entirely despite threading it in from the Intent.
+     */
+    private fun createMediaSource(url: String): MediaSource =
+        LiveMediaSourceFactory.create(
+            url = url,
+            dataSourceFactory = httpDataSourceFactory,
+            licenseKey = args.licenseKey,
+        )
 
     // --- Observers ---
 

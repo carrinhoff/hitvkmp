@@ -96,8 +96,8 @@ actual fun ChannelPreviewComposable(
     var hasError by remember { mutableStateOf(false) }
 
     val streamUrl = remember(channel.streamUrl) {
-        val outputFormat = preferencesHelper.getStoredTag("output").takeIf { it.isNotEmpty() }
-        MediaUrlNormalizer.normalize(channel.streamUrl ?: "", outputFormat)
+        // Same HLS requirement as the full-screen live player.
+        MediaUrlNormalizer.normalizeLiveForAvPlayer(channel.streamUrl ?: "")
     }
 
     DisposableEffect(streamUrl) {

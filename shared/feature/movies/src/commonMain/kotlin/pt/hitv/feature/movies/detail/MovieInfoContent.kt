@@ -85,10 +85,28 @@ fun MovieInfoContent(
     val movieCast = uiState.movieCast
     val isFavorite = uiState.isFavorite
 
-    fun isValidMovieInfo(info: Info?): Boolean {
-        if (info == null) return false
-        return !info.name.isNullOrBlank() && !info.movieImage.isNullOrBlank()
-    }
+    /**
+     * Resolves a display name from either metadata block. Ported from the original's
+     * `resolveMovieName` — providers often leave `info.name` blank but populate `movieData.name`.
+     */
+    fun resolveMovieName(info: Info?, data: MovieData?): String? =
+        info?.name?.takeIf { it.isNotBlank() } ?: data?.name?.takeIf { it.isNotBlank() }
+
+    /**
+     * Whether the full detail screen can be shown.
+     *
+     * Quoting the original, which is explicit about this: *"Show the full detail screen whenever
+     * the server returned a metadata block plus a resolvable name. Everything else in `info`
+     * (image, plot, cast…) is best-effort and the UI already degrades gracefully when it's missing.
+     * The minimal 'limited information' screen is reserved for responses with no usable metadata
+     * at all."*
+     *
+     * The port required `info.name` **and** `info.movieImage`, so any movie without a poster — and
+     * any movie whose name lived in `movieData` rather than `info` — was dumped to the limited
+     * screen despite having perfectly usable metadata.
+     */
+    fun canShowFullScreen(info: Info?, data: MovieData?): Boolean =
+        info != null && data != null && !resolveMovieName(info, data).isNullOrBlank()
 
     fun playMovie(data: MovieData, info: Info) {
         val host = preferencesHelper.getHostUrl()
@@ -136,7 +154,7 @@ fun MovieInfoContent(
             is Resources.Success -> {
                 cached.data?.let { cachedData ->
                     val info = cachedData.info
-                    if (isValidMovieInfo(info)) {
+                    if (canShowFullScreen(info, cachedData.movieData)) {
                         movieInfo = info
                         movieData = cachedData.movieData
                         isLoading = false
@@ -224,7 +242,7 @@ fun MovieInfoContent(
         when {
             isLoading || (!isContentVisible && movieInfo != null && !hasError) -> LoadingScreen()
             hasError -> ErrorScreen(onBackClick = onNavigateBack)
-            movieInfo != null && movieData != null && isValidMovieInfo(movieInfo) -> {
+            canShowFullScreen(movieInfo, movieData) -> {
                 AnimatedVisibility(
                     visible = isContentVisible,
                     enter = fadeIn(tween(300)),

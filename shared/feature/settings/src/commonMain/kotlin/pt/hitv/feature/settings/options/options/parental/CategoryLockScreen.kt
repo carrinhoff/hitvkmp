@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import pt.hitv.feature.settings.components.PinDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +42,18 @@ fun CategoryLockScreen(
 ) {
     val themeColors = getThemeColors()
     val state by viewModel.uiState.collectAsState()
+
+    // Un-protecting a category requires the PIN; protecting one does not. Ported from the
+    // original (PortraitParentalControl.kt:545-558 / LandscapeParentalControl.kt:533-551), which
+    // is explicit about the asymmetry: "Unprotecting requires PIN verification" /
+    // "Protecting doesn't require PIN (just enable)".
+    //
+    // The port had dropped it, so anyone who reached this screen could simply untick every locked
+    // category without knowing the PIN — which defeats the whole feature. That was latent while
+    // PremiumStatusProvider forced parental controls off; it became reachable the moment they
+    // started working, so it is fixed in the same pass.
+    var pendingUnprotect by remember { mutableStateOf<CategoryProtectionStatus?>(null) }
+    var pinError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -86,16 +99,51 @@ fun CategoryLockScreen(
                         name = row.category.categoryName,
                         isProtected = row.isProtected,
                         onToggle = { locked ->
-                            viewModel.toggleCategoryProtection(
-                                categoryId = row.category.categoryId,
-                                categoryName = row.category.categoryName,
-                                isProtected = locked
-                            )
+                            if (locked) {
+                                // Adding protection is not privileged.
+                                viewModel.toggleCategoryProtection(
+                                    categoryId = row.category.categoryId,
+                                    categoryName = row.category.categoryName,
+                                    isProtected = true
+                                )
+                            } else {
+                                // Removing it is — hold the change until the PIN is verified.
+                                pinError = null
+                                pendingUnprotect = row
+                            }
                         }
                     )
                 }
             }
         }
+    }
+
+    pendingUnprotect?.let { row ->
+        PinDialog(
+            title = "Enter PIN",
+            message = "Enter your PIN to unlock \"${row.category.categoryName}\".",
+            onPinEntered = { pin ->
+                viewModel.validatePin(
+                    pin = pin,
+                    onSuccess = {
+                        viewModel.toggleCategoryProtection(
+                            categoryId = row.category.categoryId,
+                            categoryName = row.category.categoryName,
+                            isProtected = false
+                        )
+                        pendingUnprotect = null
+                        pinError = null
+                    },
+                    onError = { pinError = "Incorrect PIN" }
+                )
+            },
+            onDismiss = {
+                pendingUnprotect = null
+                pinError = null
+            },
+            showError = pinError != null,
+            errorMessage = pinError.orEmpty()
+        )
     }
 }
 

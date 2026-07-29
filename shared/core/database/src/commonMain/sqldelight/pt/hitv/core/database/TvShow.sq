@@ -99,7 +99,7 @@ INNER JOIN Episode e ON s.season_id = e.seasonCreatorId AND s.userId = e.userId
 INNER JOIN EpisodeInfo ei ON e.episode_id = ei.episodeCreatorId AND e.userId = ei.userId
 WHERE t.userId = ? AND ei.playbackPosition > 0
 ORDER BY t.lastViewedTimestamp DESC
-LIMIT ?;
+LIMIT ? OFFSET ?;
 
 -- FTS search
 searchFts:

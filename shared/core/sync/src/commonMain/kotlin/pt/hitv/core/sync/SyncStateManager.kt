@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.core.common.withSyncKeepalive
 
 sealed class EpgSyncResult {
     object Success : EpgSyncResult()
@@ -120,50 +121,49 @@ class SyncStateManager {
     ) {
         if (runningJob?.isActive == true) return
         runningJob = scope.launch {
-            val needsDataSync = !preferencesHelper.getStoredBoolean("initial_sync_complete")
-            val needsEpgSync = !preferencesHelper.getStoredBoolean("epg_sync_complete")
+            // Bracket the entire data + EPG flow in a platform keepalive. On iOS
+            // this disables idle-timer auto-lock and acquires a background-task
+            // window so the URLSession calls aren't aborted the instant the
+            // user pockets the phone. Android is a passthrough.
+            withSyncKeepalive("hitv.sync.initial") {
+                val needsDataSync = !preferencesHelper.getStoredBoolean("initial_sync_complete")
+                val needsEpgSync = !preferencesHelper.getStoredBoolean("epg_sync_complete")
 
-            startDataSync()
-            try {
-                if (needsDataSync) {
-                    val result = (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
-                        updateProgress(p, s, m)
-                    }
-                    // Only mark the data sync complete when ALL stages
-                    // (channels + movies + series) actually succeeded.
-                    // Previously we set the flag unconditionally — if iOS
-                    // suspended the app mid-series-fetch and the URLSession
-                    // got cancelled, syncSeries returned isSuccess=false but
-                    // we still flipped the flag to true, so the next launch
-                    // would skip the data sync entirely and the user was
-                    // permanently missing series. Leaving the flag false on
-                    // failure means the next launch retries; channels/movies
-                    // already in the DB just refresh idempotently.
-                    if (result.isSuccess) {
-                        preferencesHelper.setStoredBoolean("initial_sync_complete", true)
-                    } else {
-                        onSyncFailed(result.errorMessage)
-                        return@launch
-                    }
-                }
-                onSyncComplete()
-
-                if (needsEpgSync) {
-                    startEpgSync()
-                    try {
-                        val epgResult = syncManager.syncEpg(userId)
-                        if (epgResult.isSuccess) {
-                            preferencesHelper.setStoredBoolean("epg_sync_complete", true)
-                            onEpgSyncComplete()
-                        } else {
-                            onEpgSyncFailed(epgResult.errorMessage)
+                startDataSync()
+                try {
+                    if (needsDataSync) {
+                        // performFullSync is per-stage resumable via SyncStageKeys —
+                        // a partial-then-failed run leaves the completed stages'
+                        // flags set, and the next call skips them.
+                        val result = (syncManager as SyncManagerImpl).performFullSync(userId) { p, s, m ->
+                            updateProgress(p, s, m)
                         }
-                    } catch (e: Exception) {
-                        onEpgSyncFailed(e.message)
+                        if (result.isSuccess) {
+                            preferencesHelper.setStoredBoolean("initial_sync_complete", true)
+                        } else {
+                            onSyncFailed(result.errorMessage)
+                            return@withSyncKeepalive
+                        }
                     }
+                    onSyncComplete()
+
+                    if (needsEpgSync) {
+                        startEpgSync()
+                        try {
+                            val epgResult = syncManager.syncEpg(userId)
+                            if (epgResult.isSuccess) {
+                                preferencesHelper.setStoredBoolean("epg_sync_complete", true)
+                                onEpgSyncComplete()
+                            } else {
+                                onEpgSyncFailed(epgResult.errorMessage)
+                            }
+                        } catch (e: Exception) {
+                            onEpgSyncFailed(e.message)
+                        }
+                    }
+                } catch (e: Exception) {
+                    onSyncFailed(e.message)
                 }
-            } catch (e: Exception) {
-                onSyncFailed(e.message)
             }
         }
     }
@@ -183,6 +183,11 @@ class SyncStateManager {
         if (runningJob?.isActive == true) return
         preferencesHelper.setStoredBoolean("initial_sync_complete", false)
         preferencesHelper.setStoredBoolean("epg_sync_complete", false)
+        // Clear per-stage flags too — otherwise resumability would skip stages
+        // the user explicitly asked to refresh.
+        preferencesHelper.setStoredBoolean(SyncStageKeys.CHANNELS_DONE, false)
+        preferencesHelper.setStoredBoolean(SyncStageKeys.MOVIES_DONE, false)
+        preferencesHelper.setStoredBoolean(SyncStageKeys.SERIES_DONE, false)
         startInitialSyncIfNeeded(userId, syncManager, preferencesHelper)
     }
 }

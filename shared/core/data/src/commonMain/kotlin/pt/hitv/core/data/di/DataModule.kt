@@ -79,7 +79,8 @@ val dataModule: Module = module {
             database = get(),
             preferencesHelper = get(),
             parentalControlManager = get(),
-            m3uParser = get()
+            m3uParser = get(),
+            driver = get()
         )
     }
 
@@ -90,7 +91,8 @@ val dataModule: Module = module {
             categoryVodQueries = get(),
             movieInfoQueries = get(),
             database = get(),
-            preferencesHelper = get()
+            preferencesHelper = get(),
+            driver = get()
         )
     }
 
@@ -101,7 +103,8 @@ val dataModule: Module = module {
             categoryTvShowQueries = get(),
             seriesInfoQueries = get(),
             database = get(),
-            preferencesHelper = get()
+            preferencesHelper = get(),
+            driver = get()
         )
     }
 
@@ -136,7 +139,8 @@ val dataModule: Module = module {
     single<CustomGroupRepository> {
         CustomGroupRepositoryImpl(
             customGroupQueries = get(),
-            channelQueries = get()
+            channelQueries = get(),
+            driver = get()
         )
     }
 

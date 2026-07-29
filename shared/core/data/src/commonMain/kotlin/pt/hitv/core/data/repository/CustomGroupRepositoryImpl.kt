@@ -9,14 +9,20 @@ import app.cash.paging.PagingSourceLoadResult
 import app.cash.paging.PagingSourceLoadResultPage
 import app.cash.paging.PagingSourceLoadResultError
 import app.cash.paging.PagingState
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import pt.hitv.core.data.mapper.toChannel
+import app.cash.sqldelight.db.SqlDriver
+import pt.hitv.core.data.paging.PagedTables
+import pt.hitv.core.data.paging.invalidateOnChangeTo
 import pt.hitv.core.data.util.SearchUtils
 import pt.hitv.core.database.CustomGroupQueries
 import pt.hitv.core.database.ChannelQueries
@@ -27,26 +33,32 @@ import pt.hitv.core.domain.repositories.CustomGroupRepository
 
 class CustomGroupRepositoryImpl(
     private val customGroupQueries: CustomGroupQueries,
-    private val channelQueries: ChannelQueries
+    private val channelQueries: ChannelQueries,
+    private val driver: SqlDriver
 ) : CustomGroupRepository {
 
     // ========== Custom Group Management ==========
 
     override suspend fun createCustomGroup(name: String, icon: String?): Long {
         return withContext(Dispatchers.IO) {
-            val groupCount = customGroupQueries.countGroups().executeAsOne()
             val now = Clock.System.now().toEpochMilliseconds()
-            customGroupQueries.insertGroup(
-                groupName = name,
-                groupIcon = icon,
-                createdAt = now,
-                updatedAt = now,
-                sortOrder = groupCount,
-                isPinned = 0L,
-                isHidden = 0L,
-                isDefault = 0L
-            )
-            customGroupQueries.lastInsertGroupId().executeAsOne().MAX ?: 0L
+            // count -> insert -> read-back-the-id is a read-modify-write; outside a transaction two
+            // groups created in quick succession can take the same sortOrder, and the id read back
+            // is not guaranteed to be the one just inserted.
+            customGroupQueries.transactionWithResult {
+                val groupCount = customGroupQueries.countGroups().executeAsOne()
+                customGroupQueries.insertGroup(
+                    groupName = name,
+                    groupIcon = icon,
+                    createdAt = now,
+                    updatedAt = now,
+                    sortOrder = groupCount,
+                    isPinned = 0L,
+                    isHidden = 0L,
+                    isDefault = 0L
+                )
+                customGroupQueries.lastInsertGroupId().executeAsOne().MAX ?: 0L
+            }
         }
     }
 
@@ -65,34 +77,43 @@ class CustomGroupRepositoryImpl(
         }
     }
 
+    /**
+     * Atomic, matching `deleteCustomGroupWithChannels` (`@Transaction`) in the original.
+     * Unwrapped, a failure between the two statements left an empty group behind — or, in the
+     * other order, membership rows pointing at a group that no longer exists.
+     */
     override suspend fun deleteCustomGroup(groupId: Long) {
         withContext(Dispatchers.IO) {
-            customGroupQueries.removeAllChannelsFromGroup(groupId)
-            customGroupQueries.deleteGroup(groupId)
+            customGroupQueries.transaction {
+                customGroupQueries.removeAllChannelsFromGroup(groupId)
+                customGroupQueries.deleteGroup(groupId)
+            }
         }
     }
 
     override fun getAllCustomGroups(): Flow<List<CustomGroup>> {
-        return flow {
-            val entities = customGroupQueries.selectAllGroups().executeAsList()
-            val groups = entities.map { entity ->
-                val channelCount = customGroupQueries.countChannelsInGroup(entity.groupId)
-                    .executeAsOne().toInt()
-                CustomGroup(
-                    id = entity.groupId,
-                    name = entity.groupName,
-                    icon = entity.groupIcon,
-                    channelCount = channelCount,
-                    createdAt = entity.createdAt,
-                    updatedAt = entity.updatedAt,
-                    sortOrder = entity.sortOrder.toInt(),
-                    isPinned = entity.isPinned != 0L,
-                    isHidden = entity.isHidden != 0L,
-                    isDefault = entity.isDefault != 0L
-                )
+        // Reactive, and a single query. Previously this emitted once and issued one count query
+        // per group, so creating or deleting a group — or adding a channel to one — left the list
+        // showing the state from whenever the screen was first composed.
+        return customGroupQueries.selectAllGroupsWithChannelCount()
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { rows ->
+                rows.map { row ->
+                    CustomGroup(
+                        id = row.groupId,
+                        name = row.groupName,
+                        icon = row.groupIcon,
+                        channelCount = row.channelCount.toInt(),
+                        createdAt = row.createdAt,
+                        updatedAt = row.updatedAt,
+                        sortOrder = row.sortOrder.toInt(),
+                        isPinned = row.isPinned != 0L,
+                        isHidden = row.isHidden != 0L,
+                        isDefault = row.isDefault != 0L
+                    )
+                }
             }
-            emit(groups)
-        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun getCustomGroupById(groupId: Long): CustomGroup? {
@@ -148,17 +169,25 @@ class CustomGroupRepositoryImpl(
         }
     }
 
+    /**
+     * One transaction, as in the original's `replaceChannelsInGroup`. Besides atomicity this is a
+     * large win on the write path — adding a few hundred channels to a group was a few hundred
+     * separate commits — and it collapses the change notifications into one, so the group list
+     * refreshes once instead of once per channel.
+     */
     override suspend fun addChannelsToGroup(groupId: Long, channels: List<Pair<Long, Int>>) {
         withContext(Dispatchers.IO) {
             val now = Clock.System.now().toEpochMilliseconds()
-            channels.forEachIndexed { index, (channelId, userId) ->
-                customGroupQueries.addChannelToGroup(
-                    groupId = groupId,
-                    channelId = channelId,
-                    channelUserId = userId.toLong(),
-                    position = index.toLong(),
-                    addedAt = now
-                )
+            customGroupQueries.transaction {
+                channels.forEachIndexed { index, (channelId, userId) ->
+                    customGroupQueries.addChannelToGroup(
+                        groupId = groupId,
+                        channelId = channelId,
+                        channelUserId = userId.toLong(),
+                        position = index.toLong(),
+                        addedAt = now
+                    )
+                }
             }
         }
     }
@@ -175,13 +204,21 @@ class CustomGroupRepositoryImpl(
         }
     }
 
+    /**
+     * Atomic, matching `reorderChannelsInGroup` (`@Transaction`) in the original. A partial reorder
+     * is worse than none: positions collide and the list settles into an order the user did not
+     * choose. The read of the current rows belongs inside the transaction too, otherwise it can be
+     * invalidated by a concurrent write before the updates land.
+     */
     override suspend fun reorderChannelsInGroup(groupId: Long, channelIds: List<Long>) {
         withContext(Dispatchers.IO) {
-            val groupChannels = customGroupQueries.selectGroupChannels(groupId).executeAsList()
-            channelIds.forEachIndexed { index, channelId ->
-                val existing = groupChannels.find { it.channelId == channelId }
-                if (existing != null) {
-                    customGroupQueries.updateChannelPosition(index.toLong(), existing.id)
+            customGroupQueries.transaction {
+                val groupChannels = customGroupQueries.selectGroupChannels(groupId).executeAsList()
+                channelIds.forEachIndexed { index, channelId ->
+                    val existing = groupChannels.find { it.channelId == channelId }
+                    if (existing != null) {
+                        customGroupQueries.updateChannelPosition(index.toLong(), existing.id)
+                    }
                 }
             }
         }
@@ -221,6 +258,7 @@ class CustomGroupRepositoryImpl(
             ),
             pagingSourceFactory = {
                 CustomGroupChannelPagingSource(customGroupQueries, groupId)
+                    .also { it.invalidateOnChangeTo(driver, PagedTables.CUSTOM_GROUP_CHANNEL, PagedTables.CHANNEL) }
             }
         ).flow
     }
@@ -247,6 +285,7 @@ class CustomGroupRepositoryImpl(
             ),
             pagingSourceFactory = {
                 AllChannelsSearchPagingSource(channelQueries, query)
+                    .also { it.invalidateOnChangeTo(driver, PagedTables.CHANNEL) }
             }
         ).flow
     }
@@ -261,6 +300,7 @@ class CustomGroupRepositoryImpl(
             ),
             pagingSourceFactory = {
                 AllChannelsPagingSource(customGroupQueries)
+                    .also { it.invalidateOnChangeTo(driver, PagedTables.CHANNEL) }
             }
         ).flow
     }
@@ -282,10 +322,19 @@ class CustomGroupRepositoryImpl(
     override suspend fun searchAllChannelsList(query: String): List<Channel> {
         return withContext(Dispatchers.IO) {
             try {
-                val words = SearchUtils.normalizeSearchWords(query)
-                val likePattern = "%${words.joinToString("%")}%"
-                channelQueries.searchByName(0L, likePattern, Long.MAX_VALUE, 0L)
+                // Across every account and word-order independent, as in the original. The old
+                // call passed userId = 0 to the single-user query, which matches no row (userId
+                // is AUTOINCREMENT, so it starts at 1), leaving this search permanently empty.
+                val slots = SearchUtils.flexibleLikeSlots(query)
+                val overflow = SearchUtils.overflowSearchWords(query)
+                channelQueries.searchAllByNameFlexible(
+                    w1 = slots[0], w2 = slots[1], w3 = slots[2],
+                    w4 = slots[3], w5 = slots[4], w6 = slots[5],
+                    limit = Long.MAX_VALUE,
+                    offset = 0L,
+                )
                     .executeAsList()
+                    .filter { SearchUtils.matchesOverflowWords(it.name, overflow) }
                     .map { it.toChannel() }
             } catch (e: Exception) {
                 emptyList()
@@ -348,11 +397,18 @@ class CustomGroupRepositoryImpl(
                 val page = params.key ?: 0
                 val pageSize = params.loadSize
                 val offset = page * pageSize
-                val words = SearchUtils.normalizeSearchWords(query)
-                val likePattern = "%${words.joinToString("%")}%"
-                // Search across all users' channels
-                val entities = channelQueries.searchByName(0L, likePattern, pageSize.toLong(), offset.toLong())
+                // Search across all users' channels, word-order independent -- see
+                // searchAllChannelsList above for why the previous userId = 0 call never matched.
+                val slots = SearchUtils.flexibleLikeSlots(query)
+                val overflow = SearchUtils.overflowSearchWords(query)
+                val entities = channelQueries.searchAllByNameFlexible(
+                    w1 = slots[0], w2 = slots[1], w3 = slots[2],
+                    w4 = slots[3], w5 = slots[4], w6 = slots[5],
+                    limit = pageSize.toLong(),
+                    offset = offset.toLong(),
+                )
                     .executeAsList()
+                    .filter { SearchUtils.matchesOverflowWords(it.name, overflow) }
                 val channels = entities.map { it.toChannel() }
                 PagingSourceLoadResultPage(
                     data = channels,

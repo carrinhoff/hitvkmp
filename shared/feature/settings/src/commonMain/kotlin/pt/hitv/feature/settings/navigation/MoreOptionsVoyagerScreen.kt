@@ -11,6 +11,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import pt.hitv.core.navigation.navigateToFeedback
+import pt.hitv.core.navigation.navigateToBackgroundSyncSettings
 import pt.hitv.core.navigation.navigateToLiveEpg
 import pt.hitv.core.navigation.navigateToManageCategories
 import pt.hitv.core.navigation.navigateToParentalControl
@@ -55,6 +56,7 @@ class MoreOptionsVoyagerScreen : Screen {
             onRefreshDataClick = { showRefreshDialog = true },
             onTipsAndFeaturesClick = { navigator.navigateToTipsAndFeatures() },
             onEpgClick = { navigator.navigateToLiveEpg() },
+            onBackgroundSyncDetailsClick = { navigator.navigateToBackgroundSyncSettings() },
             onFeedbackClick = { navigator.navigateToFeedback() },
             onDiscordClick = {
                 runCatching { uriHandler.openUri(DISCORD_URL) }

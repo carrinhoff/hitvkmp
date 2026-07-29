@@ -25,6 +25,19 @@ SELECT * FROM Category WHERE userId = ? AND isHidden = 0 ORDER BY isPinned DESC;
 selectDefaultCategory:
 SELECT * FROM Category WHERE userId = ? AND isDefault = 1 LIMIT 1;
 
+-- Category preferences a content sync must not destroy. `insertOrReplace` (used by
+-- syncChannels) hardcodes isPinned/isHidden/isDefault = 0, so a re-sync wiped every pinned
+-- category, every hidden category, and the user's default category. Same snapshot/restore
+-- approach as Channel.selectUserStateForSync — see the comment there.
+selectPreferencesForSync:
+SELECT categoryId, isPinned, isHidden, isDefault
+FROM Category
+WHERE userId = ? AND (isPinned = 1 OR isHidden = 1 OR isDefault = 1);
+
+restorePreferencesForSync:
+UPDATE Category SET isPinned = ?, isHidden = ?, isDefault = ?
+WHERE categoryId = ? AND userId = ?;
+
 -- ==================== Mutations ====================
 
 insertOrReplace:

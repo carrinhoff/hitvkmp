@@ -12,6 +12,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +73,7 @@ fun SeriesInfoContent(
     val seriesUiState by seriesViewModel.uiState.collectAsState()
     val (loadedSeriesId, seasonsMap) = seriesUiState.seasonEpisodeData
     val seriesInfo by seriesInfoViewModel.seriesInfo.collectAsState()
+    val loadError by seriesInfoViewModel.loadError.collectAsState()
 
     // Observe favorite status
     val isFavorite by seriesInfoViewModel.isFavorite.collectAsState()
@@ -77,8 +87,11 @@ fun SeriesInfoContent(
     val isDataLoading = seriesInfo == null || loadedSeriesId != seriesId
     val sortedSeasons = remember(seasonsMap) { seasonsMap.keys.sortedBy { it.seasonNumber } }
 
+    // Bumped by Retry to re-run the load.
+    var reloadToken by remember { mutableStateOf(0) }
+
     // Trigger data loading
-    LaunchedEffect(seriesId) {
+    LaunchedEffect(seriesId, reloadToken) {
         seriesInfoViewModel.loadSeriesInfo(seriesId)
         seriesViewModel.clearSeasonData()
         seriesViewModel.fetchSeasonsAndEpisodesForSeries(seriesId)
@@ -109,6 +122,19 @@ fun SeriesInfoContent(
             )
             seriesInfoViewModel.saveRecentlyViewedSeries(tvShow)
         }
+    }
+
+    // Failed with nothing cached — say so instead of spinning forever. `seriesInfo` stays null
+    // after a failed fetch, and the loading screen keys off exactly that, so without this branch
+    // the user sits on a spinner that never resolves.
+    val error = loadError
+    if (error != null && seriesInfo == null) {
+        SeriesLoadErrorScreen(
+            message = error,
+            onRetry = { reloadToken++ },
+            onBackPressed = onNavigateBack,
+        )
+        return
     }
 
     // Show loading screen while data is loading
@@ -196,6 +222,51 @@ private fun SeriesLoadingScreen(onBackPressed: () -> Unit) {
                 contentDescription = "Back",
                 tint = getThemeColors().textColor
             )
+        }
+    }
+}
+
+/**
+ * Shown when the series could not be loaded and there was no cached copy.
+ *
+ * The screen previously had only a loading state, so this case rendered an endless spinner.
+ */
+@Composable
+private fun SeriesLoadErrorScreen(
+    message: String,
+    onRetry: () -> Unit,
+    onBackPressed: () -> Unit,
+) {
+    val themeColors = getThemeColors()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(themeColors.backgroundPrimary)
+            .statusBarsPadding(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp),
+        ) {
+            Text(
+                text = "Couldn't load this series",
+                color = themeColors.textColor,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = themeColors.textColor.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(20.dp))
+            Row {
+                Button(onClick = onRetry) { Text("Retry") }
+                Spacer(Modifier.width(12.dp))
+                TextButton(onClick = onBackPressed) { Text("Go back") }
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ package pt.hitv.feature.player
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -46,6 +47,12 @@ internal fun AVPlayerSurface(
     // Re-apply gravity on aspect-mode change (recomposition).
     LaunchedEffect(aspectMode) {
         vc.videoGravity = aspectMode.toVideoGravity()
+    }
+    // Detach the player when this surface leaves composition. AVPlayerViewController holds a
+    // strong reference to its player, so without this the AVPlayer (and its decoder/network
+    // resources) outlives the screen that owned it.
+    DisposableEffect(vc) {
+        onDispose { vc.player = null }
     }
     UIKitViewController(
         modifier = modifier.fillMaxSize(),

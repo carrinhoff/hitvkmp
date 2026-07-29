@@ -27,6 +27,17 @@ class SeriesInfoViewModel(
     private val _seriesInfo = MutableStateFlow<SeriesInfo?>(null)
     val seriesInfo: StateFlow<SeriesInfo?> = _seriesInfo.asStateFlow()
 
+    /**
+     * Non-null when the network fetch failed and there was nothing cached to fall back on.
+     *
+     * Without this the screen had no way to distinguish "still loading" from "failed and never
+     * coming": `SeriesInfoContent` shows `SeriesLoadingScreen` whenever `seriesInfo == null`, and a
+     * failed fetch left it null forever, so the user sat on a spinner indefinitely with no
+     * explanation and no retry. `Resources.Error` was logged to analytics and otherwise dropped.
+     */
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError: StateFlow<String?> = _loadError.asStateFlow()
+
     private var favoriteJob: Job? = null
 
     /**
@@ -35,6 +46,7 @@ class SeriesInfoViewModel(
      * on the network-inserted rows being present in the DB.
      */
     suspend fun loadSeriesInfo(seriesId: String) {
+        _loadError.value = null
         try {
             repository.fetchSeriesInfo(seriesId)
                 .catch { /* ignore cache errors */ }
@@ -70,10 +82,24 @@ class SeriesInfoViewModel(
                         contentId = seriesId,
                         failureReason = result.message ?: "Unknown error"
                     )
+                    // Only an error if the cache gave us nothing — a stale-but-usable series is
+                    // better than an error screen, which is what the cache-then-network order is
+                    // for.
+                    if (_seriesInfo.value == null) {
+                        _loadError.value = result.message?.takeIf { it.isNotBlank() }
+                            ?: "Could not load this series."
+                    }
                 }
                 else -> {}
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            // Previously swallowed silently, which is how a thrown failure also became an
+            // permanent spinner.
+            if (_seriesInfo.value == null) {
+                _loadError.value = e.message?.takeIf { it.isNotBlank() }
+                    ?: "Could not load this series."
+            }
+        }
     }
 
     fun checkFavoriteStatus(seriesId: Int) {

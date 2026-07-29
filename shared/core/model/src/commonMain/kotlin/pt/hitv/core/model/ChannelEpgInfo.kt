@@ -21,7 +21,13 @@ data class ChannelEpgInfo(
     val programmeDescription: String?,
     val startTime: Long?,
     val endTime: Long?,
-    val logo: String? = null
+    val logo: String? = null,
+    /**
+     * Whether the channel supports catch-up / timeshift, i.e. its `tvArchive` flag is set.
+     * The EPG grid uses this to mark past programmes as replayable and to enable the channel
+     * archive sheet on long-press — mirrors `EPGChannel.hasCatchUp` in the original.
+     */
+    val hasCatchUp: Boolean = false
 ) {
     /**
      * Checks if this EPG info has valid programme data.

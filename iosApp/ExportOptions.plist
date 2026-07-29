@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Export settings for the TestFlight build produced by .github/workflows/verify.yml.
+
+  `signingStyle` is automatic even though the Xcode project is set to Manual: on CI there is no
+  Keychain full of certificates, and letting xcodebuild fetch what it needs from the App Store
+  Connect API key is far less brittle than importing a .p12 and a .mobileprovision from secrets.
+  The local project settings are untouched — this only affects the CI export.
+
+  `uploadSymbols` keeps Crashlytics able to symbolicate; without it every iOS crash report arrives
+  as raw addresses, which for a first TestFlight round is exactly the information you need.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store-connect</string>
+
+    <key>teamID</key>
+    <string>5XNB9Q6229</string>
+
+    <key>signingStyle</key>
+    <string>automatic</string>
+
+    <key>uploadSymbols</key>
+    <true/>
+
+    <!-- Bitcode has been removed from the toolchain; leaving this true fails newer Xcode. -->
+    <key>uploadBitcode</key>
+    <false/>
+
+    <key>destination</key>
+    <string>upload</string>
+</dict>
+</plist>

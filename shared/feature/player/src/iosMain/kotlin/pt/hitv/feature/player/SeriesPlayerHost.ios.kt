@@ -49,6 +49,8 @@ import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.model.seriesInfo.Episode
 import pt.hitv.feature.player.composables.SeriesPlayerScreen
 import pt.hitv.feature.player.series.SeriesPlayerViewModel
+import pt.hitv.feature.player.AvFoundationSupport
+import pt.hitv.feature.player.util.PlaybackStartWatchdog
 import pt.hitv.feature.player.util.SleepTimerManager
 
 /**
@@ -102,6 +104,22 @@ private fun SeriesPlayerHostContent(
     val uiState by viewModel.uiState.collectAsState()
     val episodes = uiState.episodes
 
+    // User-visible failure state — previously an episode that failed to load showed black.
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // See PlaybackStartWatchdog's KDoc: the periodic time observer below cannot detect an item
+    // that fails during load, because it needs the timeline to advance to run at all.
+    val startWatchdog = remember {
+        PlaybackStartWatchdog(scope = coroutineScope) {
+            isBuffering = false
+            errorMessage = "The episode did not start playing. The stream may be unavailable."
+        }
+    }
+
+    // Keep the screen awake for the duration of playback (iOS otherwise dims and locks
+    // mid-episode — AVPlayerViewController embedded in Compose doesn't get this for free).
+    KeepScreenOnAndFullscreen()
+
     // Trigger episode load + start playback once they arrive (matches Android Activity).
     LaunchedEffect(seriesId, seasonNumber) {
         viewModel.loadEpisodes(seriesId, seasonNumber)
@@ -114,6 +132,7 @@ private fun SeriesPlayerHostContent(
             onTitle = { episodeTitle = it },
             onSeekTarget = { /* resume handled by periodic-observer one-shot below */ }
         )
+        startWatchdog.arm()
     }
 
     // Resume to saved position once readyToPlay is reached for the current item —
@@ -145,19 +164,33 @@ private fun SeriesPlayerHostContent(
                                 )
                             }
                             retryCount = 0
+                            errorMessage = null
+                            startWatchdog.cancel()
                         }
                         AVPlayerItemStatusFailed -> {
                             isBuffering = false
-                            // Auto-retry the same episode up to 3 times with linear
-                            // backoff, matches the ChannelPlayerHost retry loop.
-                            // Without this, a transient hiccup permanently stalls
-                            // the episode with no recovery path.
-                            if (retryCount < maxRetries) {
+                            // Episodes carry the provider's container just like movies do, and
+                            // AVFoundation cannot open Matroska or AVI. Retrying spends three
+                            // attempts on something that can never decode — say what is actually
+                            // wrong instead. See AvFoundationSupport.
+                            val unsupported = episodes.getOrNull(currentEpisodeIndex)
+                                ?.containerExtension
+                                ?.let { AvFoundationSupport.unsupportedContainerMessage("x.$it") }
+                            if (unsupported != null) {
+                                startWatchdog.cancel()
+                                errorMessage = unsupported
+                            } else if (retryCount < maxRetries) {
                                 retryCount++
                                 coroutineScope.launch {
                                     delay(1000L * retryCount)
                                     playEpisode(avPlayer, preferencesHelper, episodes, currentEpisodeIndex, { episodeTitle = it }, {})
+                                    startWatchdog.arm()
                                 }
+                            } else {
+                                // Retries exhausted — tell the user instead of showing black.
+                                startWatchdog.cancel()
+                                errorMessage = item.error?.localizedDescription
+                                    ?: "Playback failed. Please try again."
                             }
                         }
                         else -> isBuffering = true
@@ -167,6 +200,7 @@ private fun SeriesPlayerHostContent(
             }
         )
         onDispose {
+            startWatchdog.cancel()
             token?.let { avPlayer.removeTimeObserver(it) }
             // Final position + duration save (matches Android onPause).
             saveCurrent(viewModel, episodes, currentEpisodeIndex, currentPositionMs, durationMs)
@@ -217,8 +251,11 @@ private fun SeriesPlayerHostContent(
                 currentEpisodeIndex = nextIdx
                 pendingResumeMs = initialResumeForIndex(episodes, nextIdx)
                 resumed = pendingResumeMs <= 0L
+                errorMessage = null
+                retryCount = 0
                 coroutineScope.launch {
                     playEpisode(avPlayer, preferencesHelper, episodes, nextIdx, { episodeTitle = it }, {})
+                    startWatchdog.arm()
                 }
             }
         },
@@ -229,14 +266,28 @@ private fun SeriesPlayerHostContent(
                 currentEpisodeIndex = prevIdx
                 pendingResumeMs = initialResumeForIndex(episodes, prevIdx)
                 resumed = pendingResumeMs <= 0L
+                errorMessage = null
+                retryCount = 0
                 coroutineScope.launch {
                     playEpisode(avPlayer, preferencesHelper, episodes, prevIdx, { episodeTitle = it }, {})
+                    startWatchdog.arm()
                 }
             }
         },
         onAspectRatioToggle = { aspectMode = aspectMode.cycle() },
         onSleepTimerSelect = { sleepTimerManager.start(it) },
-        onSleepTimerCancel = { sleepTimerManager.cancel() }
+        onSleepTimerCancel = { sleepTimerManager.cancel() },
+        errorMessage = errorMessage,
+        onRetry = {
+            errorMessage = null
+            retryCount = 0
+            isBuffering = true
+            coroutineScope.launch {
+                playEpisode(avPlayer, preferencesHelper, episodes, currentEpisodeIndex, { episodeTitle = it }, {})
+                startWatchdog.arm()
+            }
+        },
+        onDismissError = { errorMessage = null }
     )
 }
 

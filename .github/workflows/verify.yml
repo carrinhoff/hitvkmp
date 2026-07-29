@@ -1,0 +1,412 @@
+name: Verify
+
+# Fast correctness gate for every push and PR. Runs on Linux in a few minutes, so it gives
+# feedback long before the ~20 min macOS TestFlight job in ios-testflight.yml.
+#
+# The important part is the iOS step: Kotlin/Native can cross-compile iOS *klibs* from any host
+# (only linking a framework needs Xcode), so `compileKotlinIosArm64` type-checks every iosMain
+# source set here. Before this existed, iOS Kotlin errors could only surface in the macOS job —
+# which made iosMain the least-validated code in the repo. See KMP_MIGRATION_AUDIT.md §1.
+#
+# Requires `kotlin.native.enableKlibsCrossCompilation=true` in gradle.properties, without which
+# Gradle silently marks the iOS compile tasks SKIPPED on a non-Mac host.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Compile + test (all targets)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Cheap and first: a leaked provider credential shipped in commonMain for months,
+      # compiled into every Android and iOS release. See KMP_MIGRATION_AUDIT.md P0 #1.
+      - name: No hardcoded credentials
+        run: bash scripts/check-no-hardcoded-credentials.sh
+
+      # Drift here is an uncatchable ObjC exception at launch or on enabling background sync,
+      # not a degraded feature — Kotlin/Native cannot catch NSInternalInconsistencyException.
+      - name: BGTask identifiers agree
+        run: bash scripts/check-bgtask-identifiers.sh
+
+      # Catches JVM-only APIs leaking into commonMain, which would break iOS.
+      - name: commonTest names are Kotlin/Native-legal
+        # Seconds, no toolchain, and it fails the build before the compile steps rather than 20
+        # minutes into the macOS job.
+        run: bash scripts/check-common-test-names.sh
+
+      - name: Compile common metadata
+        run: ./gradlew compileCommonMainKotlinMetadata
+
+      - name: Compile Android
+        run: ./gradlew :androidApp:compileDebugKotlin
+
+      # Type-checks all iosMain source sets: missing actuals, wrong cinterop signatures,
+      # ObjC property-setter mistakes. Fails here instead of in the macOS archive job.
+      - name: Compile iOS (device + simulator)
+        run: |
+          ./gradlew :shared:umbrella:compileKotlinIosArm64 \
+                    :shared:umbrella:compileKotlinIosSimulatorArm64
+
+      - name: Compile instrumented tests
+        # Cheap on Linux (no emulator) and catches breakage in the device suites before the
+        # emulator job spends minutes booting.
+        run: |
+          ./gradlew :shared:core:database:compileDebugAndroidTestKotlinAndroid                     :shared:core:data:compileDebugAndroidTestKotlinAndroid
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Belt-and-braces: the iOS compile tasks are SKIPPED rather than failed if the
+      # cross-compilation flag ever gets removed, which would make this job pass vacuously.
+      - name: Assert iOS cross-compilation is enabled
+        run: |
+          if ! grep -q '^kotlin.native.enableKlibsCrossCompilation=true' gradle.properties; then
+            echo "::error::kotlin.native.enableKlibsCrossCompilation=true is missing from gradle.properties."
+            echo "Without it Gradle SKIPS the iOS compile tasks on Linux and this job proves nothing."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Actually RUNS iOS code, on a real iOS simulator.
+  #
+  # The Linux job above proves iosMain type-checks; it cannot prove the cinterop calls behave.
+  # This job runs the whole test suite (commonTest compiles for iOS too) plus the iosTest source
+  # sets — notably KeychainSettingsIosTest, which drives the real Keychain through SecItemAdd /
+  # SecItemCopyMatching. It also links the framework, which is the step the Xcode archive depends
+  # on and which cannot be exercised off macOS.
+  #
+  # Runs on master pushes and PRs rather than every branch push: macOS runners bill at 10x Linux.
+  # Trigger manually with workflow_dispatch when working on a branch that touches iosMain.
+  # ---------------------------------------------------------------------------
+  verify-ios:
+    name: Run tests on iOS simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+    if: github.event_name != 'push' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-macos-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-macos-
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # The real thing: Kotlin/Native tests executing in the iOS simulator.
+      - name: Run iOS simulator tests
+        run: ./gradlew iosSimulatorArm64Test
+
+      # Proves the Xcode-facing link step works, independently of signing/TestFlight.
+      - name: Link iOS framework
+        run: ./gradlew :shared:umbrella:linkDebugFrameworkIosSimulatorArm64
+
+      # Builds the REAL app (not a test binary), so it carries the real Info.plist.
+      # Unsigned: a simulator build needs no identity, which keeps this independent of the
+      # signing secrets the TestFlight workflow needs.
+      - name: Build iOS app for simulator
+        run: |
+          cd iosApp
+          xcodebuild build \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      # Launches it. This is the only place the app's own launch path runs on iOS:
+      #
+      #   * `BGTaskScheduler.register(forTaskWithIdentifier:)` executes in iOSApp.swift `init()`
+      #     against the REAL BGTaskSchedulerPermittedIdentifiers. A mismatch raises an ObjC
+      #     exception that Kotlin/Native cannot catch — the app dies on launch. Unit tests cannot
+      #     reach this: a test binary has the test host's Info.plist, not the app's.
+      #   * Koin init, SQLDelight open, the tri-state boot check and the first Compose frame all
+      #     run on iOS for the first time.
+      #
+      # `simctl launch` returns a pid; if the process is gone shortly after, it crashed, and the
+      # crash report is surfaced rather than swallowed.
+      - name: Launch iOS app in simulator
+        run: |
+          set -euo pipefail
+          APP=$(find "$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)
+          echo "App bundle: $APP"
+
+          # Pick a device type that actually exists on this runner image rather than pinning a
+          # model name. Runner images change Xcode versions without notice, and a hardcoded
+          # "iPhone 16" fails the whole job with a message that looks nothing like the real cause.
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j             | python3 -c "import json,sys; ts=[t['identifier'] for t in json.load(sys.stdin)['devicetypes'] if 'iPhone' in t['identifier']]; print(ts[-1] if ts else '')")
+          if [ -z "$DEVICE_TYPE" ]; then
+            echo "::error::No iPhone simulator device type available on this runner."
+            xcrun simctl list devicetypes
+            exit 1
+          fi
+          echo "Using device type: $DEVICE_TYPE"
+          DEVICE=$(xcrun simctl create verify-ios "$DEVICE_TYPE")
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+
+          xcrun simctl install "$DEVICE" "$APP"
+          PID=$(xcrun simctl launch "$DEVICE" pt.hitv.app | sed 's/.*: //')
+          echo "Launched pid $PID"
+
+          # Give the cold-start path (Koin, DB open, boot check, first frame) time to run or die.
+          sleep 20
+
+          if xcrun simctl spawn "$DEVICE" launchctl list 2>/dev/null | grep -q "pt.hitv.app"; then
+            echo "App still running after cold start."
+          else
+            echo "::error::App is not running 20s after launch — it crashed during startup."
+            echo "--- crash reports ---"
+            find ~/Library/Logs/DiagnosticReports -name '*.ips' -newermt '-5 minutes' \
+              -exec echo '=== {} ===' \; -exec cat {} \; 2>/dev/null | head -200
+            xcrun simctl shutdown "$DEVICE" || true
+            exit 1
+          fi
+
+          xcrun simctl shutdown "$DEVICE" || true
+          xcrun simctl delete "$DEVICE" || true
+
+      - name: Upload iOS test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The shared data layer and the assembled DI graph, run on Android's own embedded SQLite.
+  #
+  # This is not about Android for its own sake. ~90% of this project is shared code, and the JVM
+  # unit tests link *desktop* SQLite via JdbcSqliteDriver — a different engine from either shipping
+  # platform. Running on an emulator exercises the same statements, the same generated SQLDelight
+  # code and the same reactive machinery that iOS executes through NativeSqliteDriver, on the same
+  # kind of embedded SQLite. It is the closest proxy for the iOS data layer available without a Mac.
+  verify-android-device:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Enable KVM
+        # The emulator needs hardware acceleration; without this the runner falls back to an
+        # unusably slow software renderer and the job times out.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            ./gradlew :shared:core:database:connectedDebugAndroidTest                       :shared:core:data:connectedDebugAndroidTest
+
+      - name: Upload device test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-device-test-reports
+          path: |
+            shared/core/database/build/reports/androidTests/**
+            shared/core/data/build/reports/androidTests/**
+
+  # Builds a signed .ipa and uploads it to TestFlight.
+  #
+  # This is the only route from this project to a physical iPhone: the app cannot be built without
+  # macOS, so with a Windows development machine CI is not merely convenient, it is the sole way to
+  # produce an iOS binary at all.
+  #
+  # Manual trigger only (workflow_dispatch). TestFlight rejects a duplicate build number, and
+  # uploading on every push would burn them and spam testers.
+  #
+  # ## Required repository secrets — all three, or the job fails at the signing step
+  #
+  #   APPSTORE_KEY_ID       The Key ID of an App Store Connect API key
+  #                         (App Store Connect -> Users and Access -> Integrations -> App Store
+  #                          Connect API). The key needs the "App Manager" role to upload builds.
+  #   APPSTORE_ISSUER_ID    The Issuer ID shown above the key list on that same page.
+  #   APPSTORE_PRIVATE_KEY  The full contents of the downloaded .p8 file, including the
+  #                         -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY----- lines.
+  #                         Apple lets you download it exactly once.
+  #
+  # No .p12 or provisioning profile is needed: `-allowProvisioningUpdates` with the API key lets
+  # xcodebuild create and fetch what it needs itself.
+  #
+  # ## Note
+  #
+  # This job has never run — it was written on a machine with no macOS and no Apple credentials, so
+  # treat the first invocation as a debugging round rather than a release. The parts most likely to
+  # need adjusting are the scheme name and the App Store Connect key's permissions.
+  testflight:
+    runs-on: macos-15
+    if: github.event_name == 'workflow_dispatch'
+    # Don't ship a build whose shared code does not compile or whose tests fail.
+    needs: [verify]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build the shared framework
+        # The Xcode build shells out to Gradle anyway, but doing it here surfaces a Kotlin error as
+        # a Kotlin error rather than as an opaque xcodebuild failure.
+        run: ./gradlew :shared:umbrella:linkReleaseFrameworkIosArm64
+
+      - name: Install the App Store Connect API key
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPSTORE_KEY_ID:-}" ] || [ -z "${APPSTORE_PRIVATE_KEY:-}" ]; then
+            echo "::error::APPSTORE_KEY_ID / APPSTORE_PRIVATE_KEY are not set. See the comment above this job."
+            exit 1
+          fi
+          mkdir -p ~/private_keys
+          printf '%s' "$APPSTORE_PRIVATE_KEY" > ~/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8
+          chmod 600 ~/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8
+
+      - name: Archive
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          cd iosApp
+
+          # Build number = BUILD_OFFSET + github.run_number.
+          #
+          # TestFlight's highest existing build for version 1.0 is 34, so the offset is set to
+          # make this workflow's first run come out as 35 and climb from there. run_number is
+          # monotonic per workflow and never repeats, which is what Apple requires: a duplicate
+          # build number within the same MARKETING_VERSION is rejected outright.
+          #
+          # Note run_number counts *every* run of this workflow, including the push-triggered
+          # verify jobs — so build numbers may skip. That is fine; they only have to increase.
+          #
+          # If an upload is ever rejected as a duplicate, RAISE this value — never reset it.
+          BUILD_OFFSET=34
+          BUILD_NUMBER=$(( BUILD_OFFSET + ${{ github.run_number }} ))
+          echo "Archiving as build $BUILD_NUMBER"
+
+          xcodebuild archive \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/hitv.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8 \
+            -authenticationKeyID "$APPSTORE_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+
+      - name: Export and upload to TestFlight
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          cd iosApp
+          # ExportOptions.plist sets destination=upload, so this exports and ships in one step.
+          xcodebuild -exportArchive             -archivePath "$RUNNER_TEMP/hitv.xcarchive"             -exportOptionsPlist ExportOptions.plist             -exportPath "$RUNNER_TEMP/export"             -allowProvisioningUpdates             -authenticationKeyPath ~/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8             -authenticationKeyID "$APPSTORE_KEY_ID"             -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID"
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: |
+            ${{ runner.temp }}/export/**
+            ${{ runner.temp }}/hitv.xcarchive/Info.plist
+
+      - name: Remove the API key
+        if: always()
+        run: rm -rf ~/private_keys

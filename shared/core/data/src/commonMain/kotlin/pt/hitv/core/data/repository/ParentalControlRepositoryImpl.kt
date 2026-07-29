@@ -1,9 +1,14 @@
 package pt.hitv.core.data.repository
 
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOne
+import app.cash.sqldelight.coroutines.mapToOneOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import pt.hitv.core.data.mapper.toParentalControl
 import pt.hitv.core.database.ParentalControlQueries
@@ -18,12 +23,12 @@ class ParentalControlRepositoryImpl(
 ) : ParentalControlRepository {
 
     override fun getAllParentalControls(userId: Int): Flow<List<ParentalControl>> {
-        return flow {
-            val controls = parentalControlQueries.selectAllByUserId(userId.toLong())
-                .executeAsList()
-                .map { it.toParentalControl() }
-            emit(controls)
-        }.flowOn(Dispatchers.IO)
+        // Reactive for the same reason as ParentalControlManagerImpl.getAllParentalControls:
+        // protecting or un-protecting a category has to move the list it came from.
+        return parentalControlQueries.selectAllByUserId(userId.toLong())
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { rows -> rows.map { it.toParentalControl() } }
     }
 
     override suspend fun getParentalControlByCategory(categoryId: Int, userId: Int): ParentalControl? {
@@ -32,12 +37,10 @@ class ParentalControlRepositoryImpl(
     }
 
     override fun getParentalControlByCategoryFlow(categoryId: Int, userId: Int): Flow<ParentalControl?> {
-        return flow {
-            emit(
-                parentalControlQueries.selectByCategory(categoryId.toLong(), userId.toLong())
-                    .executeAsOneOrNull()?.toParentalControl()
-            )
-        }.flowOn(Dispatchers.IO)
+        return parentalControlQueries.selectByCategory(categoryId.toLong(), userId.toLong())
+            .asFlow()
+            .mapToOneOrNull(Dispatchers.IO)
+            .map { it?.toParentalControl() }
     }
 
     override suspend fun insertParentalControl(parentalControl: ParentalControl) {
@@ -63,9 +66,10 @@ class ParentalControlRepositoryImpl(
     }
 
     override fun getProtectedCategoriesCount(userId: Int): Flow<Int> {
-        return flow {
-            emit(parentalControlQueries.countProtected(userId.toLong()).executeAsOne().toInt())
-        }.flowOn(Dispatchers.IO)
+        return parentalControlQueries.countProtected(userId.toLong())
+            .asFlow()
+            .mapToOne(Dispatchers.IO)
+            .map { it.toInt() }
     }
 
     override suspend fun isCategoryProtected(categoryId: Int, userId: Int): Boolean {

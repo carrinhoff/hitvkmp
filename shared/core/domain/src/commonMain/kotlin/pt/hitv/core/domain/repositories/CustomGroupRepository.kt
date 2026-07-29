@@ -34,7 +34,18 @@ interface CustomGroupRepository {
     fun getAllChannels(): Flow<PagingData<Channel>>
 
     // List-based channel queries (non-paged, for KMP compatibility)
+    /**
+     * Reads the **entire** Channel table into memory. No current caller, and new ones should use
+     * [getAllChannels] instead.
+     *
+     * The Add Channels screen used this and held the result in a StateFlow: on a 50k-channel
+     * account that is 50k domain objects resident for as long as the screen is open — the memory
+     * profile iOS terminates apps over. Kept only because a bounded, deliberate use is conceivable;
+     * it is not a general-purpose accessor.
+     */
     suspend fun getAllChannelsList(): List<Channel>
+
+    /** Unbounded, like [getAllChannelsList]. Prefer [searchAllChannels], which is paged. */
     suspend fun searchAllChannelsList(query: String): List<Channel>
 
     // Maintenance

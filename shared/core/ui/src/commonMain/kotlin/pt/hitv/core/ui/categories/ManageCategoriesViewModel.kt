@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import pt.hitv.core.domain.repositories.CategoryPreferenceRepository
 import pt.hitv.core.model.CategoryPreference
@@ -28,8 +29,13 @@ class ManageCategoriesViewModel(
         loadCategories()
     }
 
+    private var categoriesJob: Job? = null
+
     fun loadCategories() {
-        viewModelScope.launch {
+        // getAllCategoryPreferences() is reactive and never completes, so a repeated call would
+        // leave the previous collector running and writing the same state.
+        categoriesJob?.cancel()
+        categoriesJob = viewModelScope.launch {
             try {
                 _isLoading.value = true
                 categoryPreferenceRepository.getAllCategoryPreferences()

@@ -2,7 +2,10 @@ package pt.hitv.core.data.repository
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -35,70 +38,77 @@ class CategoryPreferenceRepositoryImpl(
         private const val CUSTOM_GROUP_PREFIX = "custom_group_"
     }
 
+    /**
+     * Reactive, not a one-shot snapshot.
+     *
+     * This was `flow { ...executeAsList()...; emit(all) }`, which emits once and completes. The
+     * Manage Categories screen therefore never reflected a pin / hide / set-default toggle:
+     * `ManageCategoriesViewModel.togglePin` writes to the DB and does not reload, so the list
+     * stayed exactly as first loaded until the screen was rebuilt.
+     *
+     * Combining the four `asFlow()` sources means SQLDelight re-queries whichever table was
+     * written and the combined list re-emits. Source order is preserved (channels, movies, series,
+     * custom groups) so the screen's grouping is unchanged.
+     */
     override fun getAllCategoryPreferences(): Flow<List<CategoryPreference>> {
-        // Since SQLDelight doesn't have reactive queries like Room's LiveData/Flow by default,
-        // we emit a snapshot. For reactive updates, consider using asFlow() from sqldelight-coroutines.
-        return flow {
-            val allCategories = mutableListOf<CategoryPreference>()
+        val uid = userId.toLong()
+        val channels = categoryQueries.selectAllSorted(uid).asFlow().mapToList(Dispatchers.IO)
+        val movies = categoryVodQueries.selectAllSorted(uid).asFlow().mapToList(Dispatchers.IO)
+        val series = categoryTvShowQueries.selectAllSorted(uid).asFlow().mapToList(Dispatchers.IO)
+        val groups = customGroupQueries.selectAllGroupsSorted().asFlow().mapToList(Dispatchers.IO)
 
-            val channelCategories = categoryQueries.selectAllSorted(userId.toLong()).executeAsList()
-            channelCategories.forEach { category ->
-                allCategories.add(
-                    CategoryPreference(
-                        categoryId = category.categoryId.toString(),
-                        categoryName = category.categoryName,
-                        contentType = ContentType.CHANNELS,
-                        isPinned = category.isPinned != 0L,
-                        isHidden = category.isHidden != 0L,
-                        isDefault = category.isDefault != 0L
+        return combine(channels, movies, series, groups) { ch, mv, sr, cg ->
+            buildList {
+                ch.forEach {
+                    add(
+                        CategoryPreference(
+                            categoryId = it.categoryId.toString(),
+                            categoryName = it.categoryName,
+                            contentType = ContentType.CHANNELS,
+                            isPinned = it.isPinned != 0L,
+                            isHidden = it.isHidden != 0L,
+                            isDefault = it.isDefault != 0L
+                        )
                     )
-                )
-            }
-
-            val movieCategories = categoryVodQueries.selectAllSorted(userId.toLong()).executeAsList()
-            movieCategories.forEach { category ->
-                allCategories.add(
-                    CategoryPreference(
-                        categoryId = category.categoryId.toString(),
-                        categoryName = category.categoryName,
-                        contentType = ContentType.MOVIES,
-                        isPinned = category.isPinned != 0L,
-                        isHidden = category.isHidden != 0L,
-                        isDefault = category.isDefault != 0L
+                }
+                mv.forEach {
+                    add(
+                        CategoryPreference(
+                            categoryId = it.categoryId.toString(),
+                            categoryName = it.categoryName,
+                            contentType = ContentType.MOVIES,
+                            isPinned = it.isPinned != 0L,
+                            isHidden = it.isHidden != 0L,
+                            isDefault = it.isDefault != 0L
+                        )
                     )
-                )
-            }
-
-            val seriesCategories = categoryTvShowQueries.selectAllSorted(userId.toLong()).executeAsList()
-            seriesCategories.forEach { category ->
-                allCategories.add(
-                    CategoryPreference(
-                        categoryId = category.categoryId.toString(),
-                        categoryName = category.categoryName,
-                        contentType = ContentType.SERIES,
-                        isPinned = category.isPinned != 0L,
-                        isHidden = category.isHidden != 0L,
-                        isDefault = category.isDefault != 0L
+                }
+                sr.forEach {
+                    add(
+                        CategoryPreference(
+                            categoryId = it.categoryId.toString(),
+                            categoryName = it.categoryName,
+                            contentType = ContentType.SERIES,
+                            isPinned = it.isPinned != 0L,
+                            isHidden = it.isHidden != 0L,
+                            isDefault = it.isDefault != 0L
+                        )
                     )
-                )
-            }
-
-            val customGroups = customGroupQueries.selectAllGroupsSorted().executeAsList()
-            customGroups.forEach { customGroup ->
-                allCategories.add(
-                    CategoryPreference(
-                        categoryId = "$CUSTOM_GROUP_PREFIX${customGroup.groupId}",
-                        categoryName = customGroup.groupName,
-                        contentType = ContentType.CHANNELS,
-                        isPinned = customGroup.isPinned != 0L,
-                        isHidden = customGroup.isHidden != 0L,
-                        isDefault = customGroup.isDefault != 0L
+                }
+                cg.forEach {
+                    add(
+                        CategoryPreference(
+                            categoryId = "$CUSTOM_GROUP_PREFIX${it.groupId}",
+                            categoryName = it.groupName,
+                            contentType = ContentType.CHANNELS,
+                            isPinned = it.isPinned != 0L,
+                            isHidden = it.isHidden != 0L,
+                            isDefault = it.isDefault != 0L
+                        )
                     )
-                )
+                }
             }
-
-            emit(allCategories)
-        }.flowOn(Dispatchers.IO)
+        }
     }
 
     override suspend fun updateCategoryPinStatus(categoryId: String, contentType: ContentType, isPinned: Boolean) {
@@ -157,28 +167,40 @@ class CategoryPreferenceRepositoryImpl(
         }
     }
 
+    /**
+     * Clear-then-set, and it must be atomic — the original marks the equivalent `@Transaction`.
+     *
+     * Two reasons, and the second only became visible once these flows went reactive:
+     *  - A failure between the clear and the set leaves **no** default category at all, silently
+     *    discarding a setting the user chose rather than leaving it alone.
+     *  - SQLDelight holds change notifications until a transaction commits. Unwrapped, the
+     *    `clearAllDefaults()` notified on its own, so every observer briefly saw a state with no
+     *    default selected before the real one arrived — a visible flicker in Manage Categories.
+     */
     override suspend fun setDefaultCategory(categoryId: String, contentType: ContentType) {
         withContext(Dispatchers.IO) {
-            if (categoryId.startsWith(CUSTOM_GROUP_PREFIX)) {
-                val groupId = categoryId.removePrefix(CUSTOM_GROUP_PREFIX).toLong()
-                customGroupQueries.clearAllDefaults()
-                customGroupQueries.updateGroupDefaultStatus(1L, groupId)
-                categoryQueries.clearAllDefaults(userId.toLong())
-            } else {
-                val catId = categoryId.toLong()
-                when (contentType) {
-                    ContentType.CHANNELS -> {
-                        categoryQueries.clearAllDefaults(userId.toLong())
-                        categoryQueries.updateDefaultStatus(1L, catId, userId.toLong())
-                        customGroupQueries.clearAllDefaults()
-                    }
-                    ContentType.MOVIES -> {
-                        categoryVodQueries.clearAllDefaults(userId.toLong())
-                        categoryVodQueries.updateDefaultStatus(1L, catId, userId.toLong())
-                    }
-                    ContentType.SERIES -> {
-                        categoryTvShowQueries.clearAllDefaults(userId.toLong())
-                        categoryTvShowQueries.updateDefaultStatus(1L, catId, userId.toLong())
+            categoryQueries.transaction {
+                if (categoryId.startsWith(CUSTOM_GROUP_PREFIX)) {
+                    val groupId = categoryId.removePrefix(CUSTOM_GROUP_PREFIX).toLong()
+                    customGroupQueries.clearAllDefaults()
+                    customGroupQueries.updateGroupDefaultStatus(1L, groupId)
+                    categoryQueries.clearAllDefaults(userId.toLong())
+                } else {
+                    val catId = categoryId.toLong()
+                    when (contentType) {
+                        ContentType.CHANNELS -> {
+                            categoryQueries.clearAllDefaults(userId.toLong())
+                            categoryQueries.updateDefaultStatus(1L, catId, userId.toLong())
+                            customGroupQueries.clearAllDefaults()
+                        }
+                        ContentType.MOVIES -> {
+                            categoryVodQueries.clearAllDefaults(userId.toLong())
+                            categoryVodQueries.updateDefaultStatus(1L, catId, userId.toLong())
+                        }
+                        ContentType.SERIES -> {
+                            categoryTvShowQueries.clearAllDefaults(userId.toLong())
+                            categoryTvShowQueries.updateDefaultStatus(1L, catId, userId.toLong())
+                        }
                     }
                 }
             }
@@ -187,13 +209,17 @@ class CategoryPreferenceRepositoryImpl(
 
     override suspend fun clearDefaultCategory(contentType: ContentType) {
         withContext(Dispatchers.IO) {
-            when (contentType) {
-                ContentType.CHANNELS -> {
-                    categoryQueries.clearAllDefaults(userId.toLong())
-                    customGroupQueries.clearAllDefaults()
+            // CHANNELS clears two tables; one transaction so observers never see a half-cleared
+            // state, and so a failure cannot clear one and leave the other.
+            categoryQueries.transaction {
+                when (contentType) {
+                    ContentType.CHANNELS -> {
+                        categoryQueries.clearAllDefaults(userId.toLong())
+                        customGroupQueries.clearAllDefaults()
+                    }
+                    ContentType.MOVIES -> categoryVodQueries.clearAllDefaults(userId.toLong())
+                    ContentType.SERIES -> categoryTvShowQueries.clearAllDefaults(userId.toLong())
                 }
-                ContentType.MOVIES -> categoryVodQueries.clearAllDefaults(userId.toLong())
-                ContentType.SERIES -> categoryTvShowQueries.clearAllDefaults(userId.toLong())
             }
         }
     }

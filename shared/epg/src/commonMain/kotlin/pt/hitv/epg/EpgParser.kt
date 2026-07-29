@@ -40,10 +40,14 @@ object EpgParser {
     private val ATTR_STOP = Regex("""\bstop\s*=\s*["']([^"']*)["']""")
     private val ATTR_CHANNEL = Regex("""\bchannel\s*=\s*["']([^"']*)["']""")
     private val ATTR_SRC = Regex("""\bsrc\s*=\s*["']([^"']*)["']""")
-    private val DISPLAY_NAME_REGEX = Regex("""<display-name[^>]*>(.*?)</display-name>""")
+    // [\s\S] for the same newline reason as <title>/<desc> below.
+    private val DISPLAY_NAME_REGEX = Regex("""<display-name[^>]*>([\s\S]*?)</display-name>""")
     private val ICON_REGEX = Regex("""<icon\s+([^>]*?)/?>""")
-    private val TITLE_REGEX = Regex("""<title[^>]*>(.*?)</title>""")
-    private val DESC_REGEX = Regex("""<desc[^>]*>(.*?)</desc>""")
+    // [\s\S] rather than `.`: Kotlin's `.` does not match newlines, and real XMLTV feeds wrap
+    // long <desc> (and occasionally <title>) across lines. With `.` those elements simply did not
+    // match, so the programme kept an empty description while Android's XmlPullParser read it fine.
+    private val TITLE_REGEX = Regex("""<title[^>]*>([\s\S]*?)</title>""")
+    private val DESC_REGEX = Regex("""<desc[^>]*>([\s\S]*?)</desc>""")
 
     // XMLTV date format: 20230615120000 +0000
     private val XMLTV_DATE_REGEX = Regex("""(\d{14})\s*([+-]\d{4})?""")
@@ -52,11 +56,30 @@ object EpgParser {
      * Parse raw XMLTV content into [EpgDomainData].
      *
      * @param xmlContent The raw XMLTV XML string
+     * @param channelFilter if non-null, only programmes whose `channel` attribute is in this set
+     *   are retained. Compared case-insensitively, matching the original's
+     *   `channelAttr?.trim()?.lowercase()` in `XmltvParser.kt:108`. Pass the user's own
+     *   `epgChannelId` set — public XMLTV feeds routinely carry thousands of channels the
+     *   subscription doesn't include, and every one of them costs memory and DB writes.
+     * @param minEndTimeMs if non-zero, programmes ending before this instant are dropped
+     *   (expired). Mirrors `minEndTime` in `XmltvParser.kt:65`.
+     * @param maxStartTimeMs if non-zero, programmes starting after this instant are dropped.
+     *   The original bounds the same way via its ±7-day sync window.
      * @return Parsed EPG data with channels and programmes
      */
-    fun parse(xmlContent: String): EpgDomainData {
+    fun parse(
+        xmlContent: String,
+        channelFilter: Set<String>? = null,
+        minEndTimeMs: Long = 0L,
+        maxStartTimeMs: Long = 0L,
+    ): EpgDomainData {
         val channels = parseChannels(xmlContent)
-        val programmes = parseProgrammes(xmlContent)
+        val programmes = parseProgrammes(
+            xmlContent = xmlContent,
+            channelFilter = channelFilter,
+            minEndTimeMs = minEndTimeMs,
+            maxStartTimeMs = maxStartTimeMs,
+        )
         return EpgDomainData(channels = channels, programmes = programmes)
     }
 
@@ -83,37 +106,53 @@ object EpgParser {
     /**
      * Parse programme elements from XMLTV content, grouped by channel ID.
      */
-    fun parseProgrammes(xmlContent: String): Map<String, List<EPGEvent>> {
+    fun parseProgrammes(
+        xmlContent: String,
+        channelFilter: Set<String>? = null,
+        minEndTimeMs: Long = 0L,
+        maxStartTimeMs: Long = 0L,
+    ): Map<String, List<EPGEvent>> {
         val programmesMap = mutableMapOf<String, MutableList<EPGEvent>>()
         var idCounter = 0
+        // Normalize the allowlist once rather than per programme.
+        val normalizedFilter = channelFilter?.mapTo(mutableSetOf()) { it.trim().lowercase() }
 
         PROGRAMME_REGEX.findAll(xmlContent).forEach { match ->
             val attrs = match.groupValues[1]
-            val body = match.groupValues[2]
 
             val startStr = ATTR_START.find(attrs)?.groupValues?.get(1) ?: return@forEach
             val stopStr = ATTR_STOP.find(attrs)?.groupValues?.get(1) ?: return@forEach
             val channelId = ATTR_CHANNEL.find(attrs)?.groupValues?.get(1) ?: return@forEach
 
+            // Cheap rejections first — before touching the (much larger) element body or
+            // running the body regexes. This is what keeps peak memory bounded on iOS, where
+            // the whole feed is in memory: an unwanted programme costs nothing beyond the
+            // attribute match it was already going to do.
+            if (normalizedFilter != null && channelId.trim().lowercase() !in normalizedFilter) {
+                return@forEach
+            }
+
+            val startMillis = parseXmltvDate(startStr) ?: return@forEach
+            val stopMillis = parseXmltvDate(stopStr) ?: return@forEach
+
+            if (minEndTimeMs != 0L && stopMillis < minEndTimeMs) return@forEach
+            if (maxStartTimeMs != 0L && startMillis > maxStartTimeMs) return@forEach
+
+            val body = match.groupValues[2]
             val title = TITLE_REGEX.find(body)?.groupValues?.get(1)?.decodeXmlEntities() ?: ""
             val desc = DESC_REGEX.find(body)?.groupValues?.get(1)?.decodeXmlEntities() ?: ""
             val iconAttrs = ICON_REGEX.find(body)?.groupValues?.get(1) ?: ""
             val iconUrl = ATTR_SRC.find(iconAttrs)?.groupValues?.get(1) ?: ""
 
-            val startMillis = parseXmltvDate(startStr)
-            val stopMillis = parseXmltvDate(stopStr)
-
-            if (startMillis != null && stopMillis != null) {
-                val event = EPGEvent(
-                    id = "epg_${idCounter++}",
-                    start = startMillis,
-                    end = stopMillis,
-                    title = title,
-                    description = desc,
-                    imageURL = iconUrl
-                )
-                programmesMap.getOrPut(channelId) { mutableListOf() }.add(event)
-            }
+            val event = EPGEvent(
+                id = "epg_${idCounter++}",
+                start = startMillis,
+                end = stopMillis,
+                title = title,
+                description = desc,
+                imageURL = iconUrl
+            )
+            programmesMap.getOrPut(channelId) { mutableListOf() }.add(event)
         }
 
         return programmesMap
@@ -175,12 +214,51 @@ object EpgParser {
         return yearDays + dayOfYear - epochOffset
     }
 
+    /** Matches decimal (`&#233;`) and hexadecimal (`&#x00E9;`) character references. */
+    private val NUMERIC_ENTITY_REGEX = Regex("""&#(x?)([0-9A-Fa-f]+);""")
+
+    /**
+     * Decodes XML entities in programme/channel text.
+     *
+     * Two fixes over the previous version, both iOS-only in effect since Android parses via
+     * `XmlPullParser`, which decodes entities itself:
+     *
+     * 1. **Numeric character references are now decoded.** `&#237;` / `&#x00ED;` were left
+     *    literal, so accented text came through as `Not&#237;cias` instead of `Notícias`. That
+     *    hits essentially every programme title in a Portuguese guide.
+     * 2. **`&amp;` is decoded last.** Decoding it first meant `&amp;lt;` became `&lt;` and was then
+     *    decoded again to `<` — turning escaped text into markup. Doing it last makes the pass
+     *    single-level, which is what the entity encoding means.
+     */
     private fun String.decodeXmlEntities(): String {
-        return this
-            .replace("&amp;", "&")
+        val withNumeric = NUMERIC_ENTITY_REGEX.replace(this) { match ->
+            val isHex = match.groupValues[1].isNotEmpty()
+            val digits = match.groupValues[2]
+            val code = digits.toIntOrNull(if (isHex) 16 else 10)
+            // Leave anything out of range untouched rather than emitting a replacement char.
+            if (code != null && code in 1..0x10FFFF) {
+                buildString { appendCodePointCompat(code) }
+            } else {
+                match.value
+            }
+        }
+        return withNumeric
             .replace("&lt;", "<")
             .replace("&gt;", ">")
             .replace("&quot;", "\"")
             .replace("&apos;", "'")
+            // Last: see the KDoc. Decoding this first double-decodes escaped entities.
+            .replace("&amp;", "&")
+    }
+
+    /** Appends a Unicode code point, surrogate-pairing above the BMP. No `Char.toChars` in common. */
+    private fun StringBuilder.appendCodePointCompat(codePoint: Int) {
+        if (codePoint <= 0xFFFF) {
+            append(codePoint.toChar())
+        } else {
+            val v = codePoint - 0x10000
+            append((0xD800 + (v shr 10)).toChar())
+            append((0xDC00 + (v and 0x3FF)).toChar())
+        }
     }
 }

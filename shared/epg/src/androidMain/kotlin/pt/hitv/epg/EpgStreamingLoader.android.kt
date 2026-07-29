@@ -27,6 +27,9 @@ actual object EpgStreamingLoader {
         username: String,
         password: String,
         onProgress: suspend (processed: Int, stage: String) -> Unit,
+        channelFilter: Set<String>?,
+        minEndTimeMs: Long,
+        maxStartTimeMs: Long,
     ): EpgDomainData = withContext(Dispatchers.IO) {
         val url = URL("${baseUrl}xmltv.php?username=$username&password=$password")
         val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -41,7 +44,7 @@ actual object EpgStreamingLoader {
                 throw RuntimeException("EPG HTTP $code")
             }
             val raw = conn.inputStream
-            parseStream(raw, onProgress)
+            parseStream(raw, onProgress, channelFilter, minEndTimeMs, maxStartTimeMs)
         } finally {
             conn.disconnect()
         }
@@ -50,7 +53,13 @@ actual object EpgStreamingLoader {
     private suspend fun parseStream(
         rawStream: InputStream,
         onProgress: suspend (processed: Int, stage: String) -> Unit,
+        channelFilter: Set<String>?,
+        minEndTimeMs: Long,
+        maxStartTimeMs: Long,
     ): EpgDomainData {
+        // Normalized once; matches the original's `channelAttr?.trim()?.lowercase()` compare
+        // in XmltvParser.kt:108.
+        val normalizedFilter = channelFilter?.mapTo(HashSet()) { it.trim().lowercase() }
         val sanitized = XmlSanitizingInputStream(rawStream)
         val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = false }
         val parser = factory.newPullParser()
@@ -76,19 +85,33 @@ actual object EpgStreamingLoader {
                             }
                         }
                         "programme" -> {
-                            try {
+                            // Early filter: skip the whole element without walking its body if
+                            // the channel isn't one the user has. Mirrors XmltvParser.kt:107-111.
+                            val chAttr = parser.getAttributeValue(null, "channel")
+                                ?.trim()?.lowercase()
+                            if (normalizedFilter != null && chAttr != null &&
+                                chAttr !in normalizedFilter
+                            ) {
+                                skipToEndTag(parser, "programme")
+                            } else try {
                                 parseProgramme(parser) { startMs, stopMs, chId, title, desc, icon ->
-                                    val event = EPGEvent(
-                                        id = "epg_${programmeIdCounter++}",
-                                        start = startMs,
-                                        end = stopMs,
-                                        title = title,
-                                        description = desc,
-                                        imageURL = icon,
-                                    )
-                                    programmes.getOrPut(chId) { ArrayList(32) } += event
-                                    if (programmeIdCounter % 1000 == 0) {
-                                        onProgress(programmeIdCounter, "programmes")
+                                    // Time window, mirroring the original's minEndTime check.
+                                    val inWindow =
+                                        (minEndTimeMs == 0L || stopMs >= minEndTimeMs) &&
+                                            (maxStartTimeMs == 0L || startMs <= maxStartTimeMs)
+                                    if (inWindow) {
+                                        val event = EPGEvent(
+                                            id = "epg_${programmeIdCounter++}",
+                                            start = startMs,
+                                            end = stopMs,
+                                            title = title,
+                                            description = desc,
+                                            imageURL = icon,
+                                        )
+                                        programmes.getOrPut(chId) { ArrayList(32) } += event
+                                        if (programmeIdCounter % 1000 == 0) {
+                                            onProgress(programmeIdCounter, "programmes")
+                                        }
                                     }
                                 }
                             } catch (_: Exception) {

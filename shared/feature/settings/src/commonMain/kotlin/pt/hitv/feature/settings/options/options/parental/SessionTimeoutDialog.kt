@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import pt.hitv.core.designsystem.theme.getThemeColors
+import pt.hitv.core.domain.manager.ParentalControlManager
 
 /**
  * Radio-list dialog for picking the parental-control session timeout.
@@ -35,7 +36,9 @@ fun SessionTimeoutDialog(
         Option(15, "15 minutes"),
         Option(30, "30 minutes"),
         Option(60, "1 hour"),
-        Option(0, "Never (always ask)")
+        // MUST be the sentinel the session logic recognises. Storing 0 here silently produced a
+        // 30-minute session instead of always-ask — see ParentalControlManager's companion.
+        Option(ParentalControlManager.SESSION_TIMEOUT_ALWAYS_ASK, "Never (always ask)")
     )
 
     Dialog(onDismissRequest = onDismiss) {

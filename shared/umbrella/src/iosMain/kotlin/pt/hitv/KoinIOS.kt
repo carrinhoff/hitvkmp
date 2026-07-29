@@ -91,10 +91,11 @@ private val iosPlatformModule = module {
     single { ThemeManager(preferencesHelper = get()) }
     // CryptoManager — no encryption on iOS (same as Android KMP)
     single { CryptoManager() }
-    // PremiumStatusProvider — always false for now
+    // PremiumStatusProvider — un-gated until there is a working purchase flow. Binding `false`
+    // here silently disabled the whole parental-control feature (PIN accepted any input, no
+    // category ever locked). See UngatedPremiumStatusProvider's KDoc for the full rationale and
+    // the one-line revert once StoreKit is wired.
     single<pt.hitv.core.data.manager.PremiumStatusProvider> {
-        object : pt.hitv.core.data.manager.PremiumStatusProvider {
-            override fun hasPremiumSubscription(): Boolean = false
-        }
+        pt.hitv.core.data.manager.UngatedPremiumStatusProvider()
     }
 }

@@ -119,4 +119,23 @@ interface ParentalControlManager {
      * Returns false if session is still authenticated.
      */
     suspend fun requiresPinForCategory(categoryId: Long, userId: Int): Boolean
+
+    companion object {
+        /**
+         * Sentinel session-timeout values, shared with the settings UI so the picker cannot store
+         * a number the session logic does not recognise.
+         *
+         * This is not decoration: the timeout picker used to store `0` for "Never (always ask)",
+         * which matches neither sentinel and is not `> 0`, so `getSessionTimeout()` fell through
+         * to its `else` branch and handed back the **30-minute default**. A parent choosing the
+         * strictest option silently got the standard one.
+         */
+        const val SESSION_TIMEOUT_ALWAYS_ASK: Int = -2
+
+        /** Session lasts until the process is killed; cleared by `clearSessionOnAppStart()`. */
+        const val SESSION_TIMEOUT_UNTIL_APP_CLOSES: Int = -1
+
+        /** Used when nothing has been stored. */
+        const val DEFAULT_SESSION_TIMEOUT_MINUTES: Int = 30
+    }
 }

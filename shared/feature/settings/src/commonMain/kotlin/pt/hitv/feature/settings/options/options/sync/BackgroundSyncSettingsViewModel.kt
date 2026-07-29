@@ -11,6 +11,12 @@ import kotlinx.coroutines.delay
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.sync.BackgroundSyncManager
 import pt.hitv.core.sync.BackgroundSyncResult
+import pt.hitv.core.sync.DEFAULT_BG_SYNC_CONTENT_INTERVAL_DAYS
+import pt.hitv.core.sync.DEFAULT_BG_SYNC_EPG_INTERVAL_HOURS
+import pt.hitv.core.sync.PREF_BG_SYNC_CONTENT_INTERVAL_DAYS
+import pt.hitv.core.sync.PREF_BG_SYNC_ENABLED
+import pt.hitv.core.sync.PREF_BG_SYNC_EPG_INTERVAL_HOURS
+import pt.hitv.core.sync.PREF_BG_SYNC_WIFI_ONLY
 import pt.hitv.core.sync.SyncTimestampKeys
 import pt.hitv.core.sync.TASK_CONTENT
 import pt.hitv.core.sync.TASK_EPG
@@ -20,13 +26,12 @@ import pt.hitv.core.sync.TASK_EPG
  * migrations/read-throughs elsewhere (e.g. the inline BackgroundSyncCard in
  * [MobileMoreOptionsScreen]) can reuse the same keys.
  */
-const val PREF_BG_SYNC_ENABLED: String = "bg_sync_enabled"
-const val PREF_BG_SYNC_EPG_INTERVAL_HOURS: String = "bg_sync_epg_interval_hours"
-const val PREF_BG_SYNC_CONTENT_INTERVAL_DAYS: String = "bg_sync_content_interval_days"
-const val PREF_BG_SYNC_WIFI_ONLY: String = "bg_sync_wifi_only"
-
-private const val DEFAULT_EPG_INTERVAL_HOURS: Long = 12L
-private const val DEFAULT_CONTENT_INTERVAL_DAYS: Long = 1L
+// The pref keys and defaults moved to core:sync (BackgroundSyncBootstrapper) so the app-start
+// re-arm can read them without this UI module being on the boot path. Re-exported here as
+// typealias-style aliases so existing call sites keep working and there is still one source of
+// truth for the key strings.
+private const val DEFAULT_EPG_INTERVAL_HOURS: Long = DEFAULT_BG_SYNC_EPG_INTERVAL_HOURS
+private const val DEFAULT_CONTENT_INTERVAL_DAYS: Long = DEFAULT_BG_SYNC_CONTENT_INTERVAL_DAYS
 private const val HOUR_MS: Long = 60L * 60L * 1000L
 private const val DAY_MS: Long = 24L * HOUR_MS
 

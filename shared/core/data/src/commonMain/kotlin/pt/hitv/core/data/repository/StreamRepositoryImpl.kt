@@ -11,6 +11,8 @@ import app.cash.paging.PagingSourceLoadResultError
 import app.cash.paging.PagingState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -22,6 +24,8 @@ import pt.hitv.core.data.mapper.toCategory
 import pt.hitv.core.data.mapper.toChannel
 import pt.hitv.core.data.paging.*
 import pt.hitv.core.data.parser.M3uParser
+import app.cash.sqldelight.db.SqlDriver
+import pt.hitv.core.data.sync.DifferentialChannelSync
 import pt.hitv.core.data.util.SearchUtils
 import pt.hitv.core.database.ChannelQueries
 import pt.hitv.core.database.CategoryQueries
@@ -38,6 +42,14 @@ import pt.hitv.core.network.datasource.StreamRemoteDataSource
 import pt.hitv.epg.EpgDomainData
 import pt.hitv.epg.EpgParser
 
+/**
+ * How far either side of "now" EPG programmes are retained, matching the original project's
+ * EPG sync window. Anything outside it is dropped at parse time rather than being inserted and
+ * later cleaned up.
+ */
+private const val EPG_WINDOW_DAYS = 7L
+private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
+
 class StreamRepositoryImpl(
     private val streamRemoteDataSource: StreamRemoteDataSource,
     private val m3uRemoteDataSource: M3uRemoteDataSource,
@@ -50,10 +62,14 @@ class StreamRepositoryImpl(
     private val database: HitvDatabase,
     private val preferencesHelper: PreferencesHelper,
     private val parentalControlManager: ParentalControlManager,
-    private val m3uParser: M3uParser
+    private val m3uParser: M3uParser,
+    private val driver: SqlDriver
 ) : StreamRepository {
 
     private val userId: Int get() = preferencesHelper.getUserId()
+
+    /** See [DifferentialChannelSync] for why channel sync is no longer INSERT OR REPLACE. */
+    private val differentialChannelSync = DifferentialChannelSync(channelQueries)
 
     override suspend fun fetchChannelsData(): Resources<List<LiveStream>> {
         val categoriesResponse = streamRemoteDataSource.getCategories()
@@ -74,6 +90,20 @@ class StreamRepositoryImpl(
 
             try {
                 database.transaction {
+                    // Categories are still written with INSERT OR REPLACE, which flattens the
+                    // user's pin/hide/default flags — hence the snapshot/restore around them.
+                    // See Category.selectPreferencesForSync for why this is not an UPSERT.
+                    //
+                    // Channels no longer need it: performDifferentialChannelSync carries
+                    // isFavorite and lastViewedTimestamp across on the UPDATE path and never
+                    // rewrites an unchanged row. The channel snapshot/restore is kept anyway as
+                    // defence in depth — it is a narrow query (only favourited or watched rows)
+                    // and, after a correct differential sync, a no-op. Given this path cannot be
+                    // exercised on a real device from here, a redundant guard on the user's own
+                    // data is the right trade.
+                    val channelState = snapshotChannelUserState()
+                    val categoryPrefs = snapshotCategoryPreferences()
+
                     categories.forEach { category ->
                         categoryQueries.insertOrReplace(
                             categoryId = category.categoryId.toLong(),
@@ -85,28 +115,10 @@ class StreamRepositoryImpl(
                         )
                     }
 
-                    liveStreams.forEach { liveStream ->
-                        val now = Clock.System.now().toEpochMilliseconds()
-                        channelQueries.insertOrReplace(
-                            name = liveStream.name,
-                            streamUrl = mainUrl + liveStream.streamId,
-                            streamIcon = liveStream.streamIcon,
-                            epgChannelId = liveStream.epgChannelId?.trim()?.lowercase(),
-                            categoryCreatorId = liveStream.categoryId.toString(),
-                            isFavorite = 0L,
-                            licenseKey = null,
-                            userId = userId.toLong(),
-                            lastViewedTimestamp = 0L,
-                            lastUpdated = now,
-                            lastSeen = now,
-                            contentHash = null,
-                            syncVersion = 1L,
-                            tvArchive = liveStream.tvArchive.toLong(),
-                            tvArchiveDuration = liveStream.tvArchiveDuration.toLong(),
-                            catchupType = liveStream.catchupType,
-                            catchupSource = liveStream.catchupSource,
-                        )
-                    }
+                    differentialChannelSync.sync(liveStreams, userId, mainUrl)
+
+                    restoreChannelUserState(channelState)
+                    restoreCategoryPreferences(categoryPrefs)
                 }
                 return Resources.Success(liveStreams)
             } catch (e: Exception) {
@@ -127,12 +139,16 @@ class StreamRepositoryImpl(
     }
 
     override suspend fun getFavoritesChannel(): Flow<List<Channel>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val channels = channelQueries.selectFavoritesPaged(userId.toLong(), Long.MAX_VALUE, 0L)
-                .executeAsList()
-                .map { it.toChannel() }
-            emit(channels)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                channelQueries.selectFavoritesPaged(userId.toLong(), Long.MAX_VALUE, 0L)
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toChannel() } }
+            )
+        }
     }
 
     override suspend fun getAllChannelsEpg(): List<ChannelEpgInfo> {
@@ -185,13 +201,53 @@ class StreamRepositoryImpl(
         }
     }
 
+    /**
+     * Every programme overlapping [startTime]..[endTime] for the channels in [categoryId].
+     *
+     * Backs the EPG grid. This was a `return emptyList()` stub, which is why the grid had no data
+     * source even once the query existed. `hasCatchUp` comes from the Channel row's `tvArchive`
+     * flag — the grid uses it to mark past programmes as replayable, matching the original's
+     * `EPGChannel.hasCatchUp`.
+     */
     override suspend fun getProgrammesForCategory(
         categoryId: String,
         startTime: Long,
         endTime: Long
-    ): List<ChannelEpgInfo> {
-        // TODO: Map from SQLDelight selectProgrammesForCategory result to ChannelEpgInfo
-        return emptyList()
+    ): List<ChannelEpgInfo> = withContext(Dispatchers.IO) {
+        try {
+            val rows = programmeQueries.selectProgrammesForCategory(
+                categoryCreatorId = categoryId,
+                userId = userId.toLong(),
+                end_time = startTime,
+                start_time = endTime,
+            ).executeAsList()
+
+            // One lookup per distinct channel rather than per programme row.
+            val catchUpByEpgId = rows.mapNotNull { it.channel_id }
+                .distinct()
+                .associateWith { epgId ->
+                    runCatching {
+                        channelQueries.selectByEpgId(epgId, userId.toLong())
+                            .executeAsOneOrNull()
+                            ?.let { (it.tvArchive ?: 0L) > 0L }
+                    }.getOrNull() ?: false
+                }
+
+            rows.map { row ->
+                ChannelEpgInfo(
+                    channelId = row.channel_id,
+                    channelName = row.display_name ?: row.channel_name,
+                    programmeTitle = row.title,
+                    programmeDescription = row.description,
+                    startTime = row.start_time,
+                    endTime = row.end_time,
+                    logo = row.logo,
+                    hasCatchUp = catchUpByEpgId[row.channel_id] ?: false,
+                )
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 
     override suspend fun getChannel(name: String): Channel? {
@@ -213,16 +269,24 @@ class StreamRepositoryImpl(
     }
 
     override suspend fun getRecentlyViewedChannels(): Flow<List<Channel>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val channels = channelQueries.selectRecentlyViewed(userId.toLong())
-                .executeAsList()
-                .map { it.toChannel() }
-            emit(channels)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                channelQueries.selectRecentlyViewed(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toChannel() } }
+            )
+        }
     }
 
     override suspend fun saveM3uData(userId: Int, playlistName: String, channels: List<Channel>) {
         database.transaction {
+            // Same INSERT OR REPLACE data loss as syncChannels — see snapshotChannelUserState.
+            val channelState = snapshotChannelUserState(userId)
+            val categoryPrefs = snapshotCategoryPreferences(userId)
+
             val channelsByCategory = channels.groupBy { it.categoryId ?: "Uncategorized" }
 
             channelsByCategory.keys.forEachIndexed { index, categoryName ->
@@ -266,6 +330,89 @@ class StreamRepositoryImpl(
                     )
                 }
             }
+
+            restoreChannelUserState(channelState, userId)
+            restoreCategoryPreferences(categoryPrefs, userId)
+        }
+    }
+
+    // ===== Sync data-preservation helpers =====
+    //
+    // `syncChannels` and `saveM3uData` both write content with INSERT OR REPLACE, which resets
+    // every column — including the ones the user owns (favourites, recently-viewed timestamps,
+    // pinned/hidden/default categories). Before this, every content re-sync silently wiped all
+    // of them, and on iOS that fires from the background BGTask with no user action at all.
+    //
+    // SQLite 3.19 (minSdk 26) has no UPSERT, so the fix is: snapshot the user-owned columns,
+    // let the content write happen, then re-apply. Both snapshots are deliberately restricted
+    // to rows the user has actually touched, so they stay small even on a 50k-channel account.
+    // Called inside the caller's existing transaction, so it is all-or-nothing.
+
+    private data class ChannelUserState(
+        val name: String,
+        val categoryCreatorId: String,
+        val isFavorite: Long,
+        val lastViewedTimestamp: Long,
+    )
+
+    private data class CategoryPreference(
+        val categoryId: Long,
+        val isPinned: Long,
+        val isHidden: Long,
+        val isDefault: Long,
+    )
+
+    private fun snapshotChannelUserState(forUserId: Int = userId): List<ChannelUserState> =
+        channelQueries.selectUserStateForSync(forUserId.toLong())
+            .executeAsList()
+            .map {
+                ChannelUserState(
+                    name = it.name,
+                    categoryCreatorId = it.categoryCreatorId,
+                    isFavorite = it.isFavorite,
+                    lastViewedTimestamp = it.lastViewedTimestamp,
+                )
+            }
+
+    private fun restoreChannelUserState(
+        snapshot: List<ChannelUserState>,
+        forUserId: Int = userId,
+    ) {
+        snapshot.forEach {
+            channelQueries.restoreUserStateForSync(
+                isFavorite = it.isFavorite,
+                lastViewedTimestamp = it.lastViewedTimestamp,
+                name = it.name,
+                userId = forUserId.toLong(),
+                categoryCreatorId = it.categoryCreatorId,
+            )
+        }
+    }
+
+    private fun snapshotCategoryPreferences(forUserId: Int = userId): List<CategoryPreference> =
+        categoryQueries.selectPreferencesForSync(forUserId.toLong())
+            .executeAsList()
+            .map {
+                CategoryPreference(
+                    categoryId = it.categoryId,
+                    isPinned = it.isPinned,
+                    isHidden = it.isHidden,
+                    isDefault = it.isDefault,
+                )
+            }
+
+    private fun restoreCategoryPreferences(
+        snapshot: List<CategoryPreference>,
+        forUserId: Int = userId,
+    ) {
+        snapshot.forEach {
+            categoryQueries.restorePreferencesForSync(
+                isPinned = it.isPinned,
+                isHidden = it.isHidden,
+                isDefault = it.isDefault,
+                categoryId = it.categoryId,
+                userId = forUserId.toLong(),
+            )
         }
     }
 
@@ -317,7 +464,17 @@ class StreamRepositoryImpl(
                     categoryId = categoryId,
                     searchQuery = searchQuery,
                     parentalControlManager = parentalControlManager
-                )
+                ).also {
+                    // Custom-group and parental-control tables matter too: this source reads
+                    // group membership for the custom-group filter, and filters out protected
+                    // categories, so a change to either alters what the list should show.
+                    it.invalidateOnChangeTo(
+                        driver,
+                        PagedTables.CHANNEL,
+                        PagedTables.CUSTOM_GROUP_CHANNEL,
+                        PagedTables.PARENTAL_CONTROL,
+                    )
+                }
             }
         ).flow
     }
@@ -369,12 +526,16 @@ class StreamRepositoryImpl(
     }
 
     override suspend fun fetchChannelsFromDB(): Flow<List<Channel>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val channels = channelQueries.selectAllByUserId(userId.toLong())
-                .executeAsList()
-                .map { it.toChannel() }
-            emit(channels)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                channelQueries.selectAllByUserId(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toChannel() } }
+            )
+        }
     }
 
     override suspend fun getCategoriesWithChannels(): List<CategoryWithChannel> {
@@ -393,19 +554,69 @@ class StreamRepositoryImpl(
         }
     }
 
+    /**
+     * The EPG channel ids this user's channel list actually references, used as the XMLTV parse
+     * allowlist. Mirrors the original's `channelFilter` (`XmltvParser.kt:64`): public feeds
+     * routinely carry thousands of channels a given subscription doesn't include, and parsing
+     * them all costs memory (fatally so on iOS, where the whole feed is in a String) and
+     * pointless DB writes.
+     *
+     * Returns null — meaning "no filtering" — when the channel table is empty, which happens on
+     * the very first sync where EPG can run before channels land. Filtering to an empty set
+     * there would silently discard the entire feed.
+     */
+    private fun subscribedEpgChannelIds(): Set<String>? {
+        val ids = runCatching {
+            // The query aliases a LOWER(TRIM(...)) expression, so SQLDelight generates a
+            // single-property wrapper row type rather than returning a bare String.
+            channelQueries.selectEpgChannelIdsForUser(userId.toLong())
+                .executeAsList()
+                .mapNotNull { it.epgId }
+                .toSet()
+        }.getOrNull()
+        return ids?.takeIf { it.isNotEmpty() }
+    }
+
+    /** The EPG guide URL persisted on the current account, if any (set for M3U logins). */
+    private fun storedEpgUrl(): String? = runCatching {
+        userCredentialsQueries.selectByUserId(userId.toLong())
+            .executeAsOneOrNull()
+            ?.epgUrl
+            ?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    /** Start of the retained EPG window: 7 days back, matching the original's sync window. */
+    private fun epgWindowStartMs(): Long =
+        Clock.System.now().toEpochMilliseconds() - EPG_WINDOW_DAYS * MILLIS_PER_DAY
+
+    /** End of the retained EPG window: 7 days forward. */
+    private fun epgWindowEndMs(): Long =
+        Clock.System.now().toEpochMilliseconds() + EPG_WINDOW_DAYS * MILLIS_PER_DAY
+
     override suspend fun fetchEPG(
         epgUrlOverride: String?,
         onChannelProgress: suspend (channelsProcessed: Int, totalChannels: Int) -> Unit,
         onProgrammeProgress: suspend (programmesProcessed: Int, totalProgrammes: Int) -> Unit
     ): Resources<EpgDomainData> {
-        if (!epgUrlOverride.isNullOrBlank()) {
-            return when (val contentResource = m3uRemoteDataSource.fetchEpgFromUrl(epgUrlOverride)) {
+        // Fall back to the EPG URL stored on the account when no override is given. M3U/playlist
+        // accounts have no Xtream xmltv.php endpoint — their guide URL comes from the playlist
+        // header (`url-tvg` / `x-tvg-url`, extracted by M3uParser) and is persisted on
+        // UserCredentials.epgUrl. The only caller (SyncManagerImpl.syncEpg) passes null, so
+        // without this fallback that stored URL was never used and M3U accounts got no EPG at all.
+        val effectiveEpgUrl = epgUrlOverride?.takeIf { it.isNotBlank() } ?: storedEpgUrl()
+        if (!effectiveEpgUrl.isNullOrBlank()) {
+            return when (val contentResource = m3uRemoteDataSource.fetchEpgFromUrl(effectiveEpgUrl)) {
                 is Resources.Success -> {
                     val xmlContent = contentResource.data
                     if (xmlContent.isBlank() || !xmlContent.trim().startsWith("<")) {
                         return Resources.Error("Received invalid or non-XML content from EPG source.")
                     }
-                    val epgData = EpgParser.parse(xmlContent)
+                    val epgData = EpgParser.parse(
+                        xmlContent = xmlContent,
+                        channelFilter = subscribedEpgChannelIds(),
+                        minEndTimeMs = epgWindowStartMs(),
+                        maxStartTimeMs = epgWindowEndMs(),
+                    )
                     insertEpgDB(epgData, onChannelProgress, onProgrammeProgress)
                     Resources.Success(epgData)
                 }
@@ -427,6 +638,9 @@ class StreamRepositoryImpl(
                     username = username,
                     password = password,
                     onProgress = { _, _ -> },
+                    channelFilter = subscribedEpgChannelIds(),
+                    minEndTimeMs = epgWindowStartMs(),
+                    maxStartTimeMs = epgWindowEndMs(),
                 )
                 insertEpgDB(epgData, onChannelProgress, onProgrammeProgress)
                 Resources.Success(epgData)
@@ -453,6 +667,28 @@ class StreamRepositoryImpl(
             .distinctBy { it.channelID.trim().lowercase() }
 
         val cleanedChannelIdsSet = uniqueCleanedChannels.map { it.channelID.trim().lowercase() }.toSet()
+
+        // Clear this user's existing programme data before inserting the fresh feed.
+        //
+        // Without this the method only ever APPENDED: `insertProgramme` uses an AUTOINCREMENT id,
+        // so every EPG sync created a brand-new row for every programme, plus its title and
+        // description. At a 6-12 hour sync cadence the Programme / Title / Description tables grew
+        // without bound — real disk pressure on a phone, and progressively slower EPG queries.
+        // Build 22's "EPG query deduplicates overlapping programmes" was a workaround for the
+        // symptom; this removes the cause.
+        //
+        // Only runs when there is a feed to replace it with, so a failed fetch cannot wipe the
+        // guide. Clear-and-reinsert rather than a surgical diff because `Programme.last_updated`
+        // (the column the original uses for non-destructive sync) has no SQLDelight equivalent —
+        // see §5. The trade-off is a brief window mid-sync with partial EPG, which the next
+        // scheduled sync corrects.
+        if (programmesMap.isNotEmpty()) {
+            database.transaction {
+                programmeQueries.deleteTitlesByUserId(userId.toLong())
+                programmeQueries.deleteDescriptionsByUserId(userId.toLong())
+                programmeQueries.deleteProgrammesByUserId(userId.toLong())
+            }
+        }
 
         if (uniqueCleanedChannels.isNotEmpty()) {
             database.transaction {
@@ -606,12 +842,10 @@ class StreamRepositoryImpl(
     }
 
     override fun getAllChannelCategories(userId: Int): Flow<List<Category>> {
-        return flow {
-            val categories = categoryQueries.selectVisibleSorted(userId.toLong())
-                .executeAsList()
-                .map { it.toCategory() }
-            emit(categories)
-        }.flowOn(Dispatchers.IO)
+        return categoryQueries.selectVisibleSorted(userId.toLong())
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { rows -> rows.map { it.toCategory() } }
     }
 
     override suspend fun getDefaultChannelCategoryId(): String? {
@@ -637,21 +871,23 @@ class StreamRepositoryImpl(
     }
 
     override fun getAllChannelsFlow(): Flow<List<Channel>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val channels = channelQueries.selectAllByUserId(userId.toLong())
-                .executeAsList()
-                .map { it.toChannel() }
-            emit(channels)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                channelQueries.selectAllByUserId(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toChannel() } }
+            )
+        }
     }
 
     override fun getAllChannelCategoriesForParentalControl(userId: Int): Flow<List<Category>> {
-        return flow {
-            val categories = categoryQueries.selectAllByUserId(userId.toLong())
-                .executeAsList()
-                .map { it.toCategory() }
-            emit(categories)
-        }.flowOn(Dispatchers.IO)
+        return categoryQueries.selectAllByUserId(userId.toLong())
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { rows -> rows.map { it.toCategory() } }
     }
 }
 
@@ -684,10 +920,21 @@ private class ChannelPagingSource(
                 }
 
                 !searchQuery.isNullOrBlank() -> {
-                    val words = SearchUtils.normalizeSearchWords(searchQuery)
-                    val likePattern = "%${words.joinToString("%")}%"
-                    channelQueries.searchByName(userId.toLong(), likePattern, pageSize.toLong(), offset.toLong())
+                    // Word-order independent, matching the original's searchChannelsFlexible:
+                    // every word must appear somewhere in the name, in any order. The previous
+                    // single `%a%b%` pattern demanded the typed order and so missed, for example,
+                    // "HD Sports" when the user typed "sports hd".
+                    val slots = SearchUtils.flexibleLikeSlots(searchQuery)
+                    val overflow = SearchUtils.overflowSearchWords(searchQuery)
+                    channelQueries.searchByNameFlexible(
+                        userId = userId.toLong(),
+                        w1 = slots[0], w2 = slots[1], w3 = slots[2],
+                        w4 = slots[3], w5 = slots[4], w6 = slots[5],
+                        limit = pageSize.toLong(),
+                        offset = offset.toLong(),
+                    )
                         .executeAsList()
+                        .filter { SearchUtils.matchesOverflowWords(it.name, overflow) }
                         .map { it.toChannel() }
                 }
 
@@ -737,7 +984,15 @@ private class ChannelPagingSource(
             PagingSourceLoadResultPage(
                 data = filteredChannels,
                 prevKey = if (page == 0) null else page - 1,
-                nextKey = if (filteredChannels.size < pageSize) null else page + 1
+                // Exhaustion is decided by what the QUERY returned, not by what survived parental
+                // filtering. Using `filteredChannels.size` meant a single protected channel in a
+                // page made the page look short, so `nextKey` went null and paging stopped dead —
+                // silently truncating the channel list at the first protected entry.
+                //
+                // This was unreachable while PremiumStatusProvider forced parental controls off
+                // (getProtectedCategoryIds returned empty, so nothing was ever filtered). Enabling
+                // them in this pass made it live.
+                nextKey = if (channels.size < pageSize) null else page + 1
             )
         } catch (e: Exception) {
             PagingSourceLoadResultError(e)

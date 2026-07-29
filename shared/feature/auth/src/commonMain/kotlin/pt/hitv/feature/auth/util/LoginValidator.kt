@@ -1,5 +1,7 @@
 package pt.hitv.feature.auth.util
 
+import pt.hitv.core.common.url.ServerUrlNormalizer
+
 /**
  * Utility class for validating and sanitizing login inputs.
  * Pure Kotlin - no platform dependencies.
@@ -165,27 +167,19 @@ object LoginValidator {
     }
 
     /**
-     * Sanitizes URL by trimming and normalizing
+     * Sanitizes an Xtream server URL.
+     *
+     * Delegates to [ServerUrlNormalizer], the original's "single, permissive home" for this. The
+     * port had grown three partial copies of the same logic — this one, `normalizeHostname` in
+     * `AccountManagerRepositoryImpl`, and the trailing-slash fixup in `PreferencesHelper.getHostUrl`
+     * — which had already drifted apart: this copy prepended a scheme and the repository's did not.
+     *
+     * Behaviour change here is small and in the right direction: a pasted
+     * `…/player_api.php?username=…` is now stripped back to the base host, which this copy did not
+     * do. Pasting that endpoint is a normal thing for a user to do, since it is the URL providers
+     * hand out, and it previously produced a host that could never authenticate.
      */
-    fun sanitizeUrl(url: String): String {
-        var sanitized = url.replace(Regex("\\s+"), "")
-
-        if (!sanitized.startsWith("http://", ignoreCase = true) &&
-            !sanitized.startsWith("https://", ignoreCase = true)
-        ) {
-            sanitized = "http://$sanitized"
-        }
-
-        while (sanitized.endsWith("/") && sanitized.length > 8) {
-            sanitized = sanitized.dropLast(1)
-        }
-
-        if (!sanitized.contains("?") && !sanitized.endsWith(".m3u") && !sanitized.endsWith(".m3u8")) {
-            sanitized = "$sanitized/"
-        }
-
-        return sanitized
-    }
+    fun sanitizeUrl(url: String): String = ServerUrlNormalizer.normalize(url)
 
     fun sanitizeUsername(username: String): String = username.trim()
 

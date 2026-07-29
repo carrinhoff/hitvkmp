@@ -150,6 +150,12 @@ class PreferencesHelper(
     }
 
     companion object {
-        private val SENSITIVE_KEYS = setOf("username", "password", "hostUrl", "parental_control_pin")
+        /**
+         * Keys routed to [createEncryptedSettings] instead of the normal settings store.
+         * Internal rather than private because the iOS actual needs it to migrate these keys
+         * out of the old plaintext NSUserDefaults suite and into the Keychain.
+         */
+        internal val SENSITIVE_KEYS =
+            setOf("username", "password", "hostUrl", "parental_control_pin")
     }
 }

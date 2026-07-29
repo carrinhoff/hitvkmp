@@ -60,13 +60,88 @@ SELECT * FROM Channel WHERE userId = ? AND lastViewedTimestamp IS NOT NULL AND l
 searchByName:
 SELECT * FROM Channel WHERE userId = ? AND LOWER(name) LIKE LOWER(?) ORDER BY name ASC LIMIT ? OFFSET ?;
 
+-- Flexible multi-word channel search: every word must appear in the name, in ANY order.
+--
+-- Ports `SearchUtils.createFlexibleSearchQuery` + `DAOChannel.searchChannelsFlexible` from the
+-- original, which emits one `LOWER(name) LIKE ?` per word and ANDs them together through Room's
+-- @RawQuery. The port had collapsed that to a single ordered pattern, `%word1%word2%`, which
+-- requires the words to appear in the typed order: searching "sports hd" then missed a channel
+-- named "HD Sports". Multi-word channel names are the norm in IPTV playlists, so this bit often.
+--
+-- SQLDelight has no dynamic SQL, so the word list is spread over a fixed number of slots and
+-- unused slots are passed as '' — the `= ''` guard makes them no-ops. That is the same shape
+-- already used by `selectByCategorySorted`. Keep the slot count in step with
+-- `SearchUtils.FLEXIBLE_SEARCH_SLOTS`; `SearchUtilsTest` pins the two together.
+--
+-- Patterns arrive pre-lowercased and pre-wrapped ('%word%') from `SearchUtils.flexibleLikeSlots`,
+-- matching the original, which lowercases each word itself and only ever LOWER()s the column.
+searchByNameFlexible:
+SELECT * FROM Channel
+WHERE userId = :userId
+  AND (:w1 = '' OR LOWER(name) LIKE :w1)
+  AND (:w2 = '' OR LOWER(name) LIKE :w2)
+  AND (:w3 = '' OR LOWER(name) LIKE :w3)
+  AND (:w4 = '' OR LOWER(name) LIKE :w4)
+  AND (:w5 = '' OR LOWER(name) LIKE :w5)
+  AND (:w6 = '' OR LOWER(name) LIKE :w6)
+ORDER BY name ASC
+LIMIT :limit OFFSET :offset;
+
+-- Same flexible search, across EVERY account rather than one.
+--
+-- Used by the "add channels to a custom group" picker. The original's
+-- `CustomGroupRepositoryImpl.searchAllChannelsFlexible` builds its WHERE clause from the words
+-- alone and deliberately omits any userId predicate, so the picker can pull channels from all
+-- stored accounts. The port called the single-user `searchByName` with a hardcoded userId of 0
+-- under a comment claiming it searched all users -- and since `UserCredentials.userId` is
+-- INTEGER PRIMARY KEY AUTOINCREMENT, SQLite hands out 1 for the first account and never 0. The
+-- predicate therefore matched no row on any install and the picker's search was dead.
+searchAllByNameFlexible:
+SELECT * FROM Channel
+WHERE (:w1 = '' OR LOWER(name) LIKE :w1)
+  AND (:w2 = '' OR LOWER(name) LIKE :w2)
+  AND (:w3 = '' OR LOWER(name) LIKE :w3)
+  AND (:w4 = '' OR LOWER(name) LIKE :w4)
+  AND (:w5 = '' OR LOWER(name) LIKE :w5)
+  AND (:w6 = '' OR LOWER(name) LIKE :w6)
+ORDER BY name ASC
+LIMIT :limit OFFSET :offset;
+
 -- Get a single channel by name and userId
 selectByName:
 SELECT * FROM Channel WHERE name = ? AND userId = ? LIMIT 1;
 
+-- User-owned channel state that a content sync must not destroy.
+--
+-- `insertOrReplace` (used by syncChannels) hardcodes isFavorite = 0 and
+-- lastViewedTimestamp = 0, so a re-sync silently wiped every favourite and the whole
+-- recently-viewed list. SQLite 3.19 (minSdk 26) predates UPSERT's ON CONFLICT DO UPDATE,
+-- so the fix is snapshot-before / restore-after around the sync transaction.
+--
+-- Deliberately narrow: only rows the user has actually touched, so the snapshot stays small
+-- even on a 50k-channel account.
+selectUserStateForSync:
+SELECT name, categoryCreatorId, isFavorite, lastViewedTimestamp
+FROM Channel
+WHERE userId = ? AND (isFavorite = 1 OR lastViewedTimestamp != 0);
+
+-- Re-applies one snapshot row. Keyed the same way updateFavorite is.
+restoreUserStateForSync:
+UPDATE Channel SET isFavorite = ?, lastViewedTimestamp = ?
+WHERE name = ? AND userId = ? AND categoryCreatorId = ?;
+
 -- Get a channel by EPG ID
 selectByEpgId:
 SELECT * FROM Channel WHERE LOWER(TRIM(epgChannelId)) = LOWER(TRIM(?)) AND userId = ? LIMIT 1;
+
+-- All distinct EPG channel ids this user actually subscribes to, normalized the same way
+-- selectByEpgId matches them. Used as the XMLTV parse allowlist so a public feed carrying
+-- thousands of foreign channels doesn't get parsed and inserted wholesale — see the
+-- channelFilter parameter on EpgParser.parse and the original's XmltvParser channelFilter.
+selectEpgChannelIdsForUser:
+SELECT DISTINCT LOWER(TRIM(epgChannelId)) AS epgId
+FROM Channel
+WHERE userId = ? AND epgChannelId IS NOT NULL AND TRIM(epgChannelId) != '';
 
 -- Get favorite status
 selectFavoriteStatus:
@@ -118,8 +193,12 @@ updateLastViewedTimestamp:
 UPDATE Channel SET lastViewedTimestamp = ? WHERE name = ? AND userId = ? AND categoryCreatorId = ?;
 
 -- Update channel (full update by id)
+-- catchupType / catchupSource are included so this matches the full column set that
+-- `EntityChannel.fromWithExistingSync` writes in the original. They were missing, so a provider
+-- that started or stopped offering catch-up on an existing channel would never have that reflected
+-- once differential sync began using UPDATE instead of INSERT OR REPLACE.
 updateById:
-UPDATE Channel SET name = ?, streamUrl = ?, streamIcon = ?, epgChannelId = ?, categoryCreatorId = ?, isFavorite = ?, licenseKey = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?, tvArchive = ?, tvArchiveDuration = ?
+UPDATE Channel SET name = ?, streamUrl = ?, streamIcon = ?, epgChannelId = ?, categoryCreatorId = ?, isFavorite = ?, licenseKey = ?, lastViewedTimestamp = ?, lastUpdated = ?, lastSeen = ?, contentHash = ?, syncVersion = ?, tvArchive = ?, tvArchiveDuration = ?, catchupType = ?, catchupSource = ?
 WHERE channelId = ?;
 
 -- Mark channels as seen
@@ -133,3 +212,9 @@ DELETE FROM Channel WHERE userId = ?;
 -- Delete stale channels
 deleteStale:
 DELETE FROM Channel WHERE userId = ? AND lastSeen < ?;
+
+-- Counterpart to deleteStale, so a differential sync can report how many rows it removed.
+-- SQLDelight does not surface an affected-row count from DELETE the way Room's @Query Int return
+-- does, which is what the original uses for DifferentialSyncResult.deleted.
+countStale:
+SELECT COUNT(*) FROM Channel WHERE userId = ? AND lastSeen < ?;

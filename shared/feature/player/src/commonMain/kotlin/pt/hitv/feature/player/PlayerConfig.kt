@@ -55,4 +55,28 @@ object PlayerConfigFactory {
 
     /** Initial bandwidth estimate (bits per second) used by the native player. */
     const val INITIAL_BITRATE_ESTIMATE: Long = 2_000_000L
+
+    /** Preference value used when the user has never chosen a live buffer size. */
+    const val DEFAULT_LIVE_BUFFER: String = "medium"
+
+    /**
+     * Live buffer durations for the user's "Live Buffer Size" setting.
+     *
+     * Ported verbatim from the original's
+     * `core/common/.../media/PlayerConfigFactory.kt:29-39` (`createLiveLoadControl`), which maps
+     * the same four preference values onto `DefaultLoadControl` buffer durations.
+     *
+     * The port previously read and wrote the preference but **no player ever consumed it** — the
+     * setting was inert, so changing it did nothing. The original wires it into
+     * `PlaybackManager.createExoPlayer` and `ExoPlayerController`. Buffer sizing matters most on
+     * exactly the mobile networks this app is used on, so a dead control here is not cosmetic.
+     *
+     * Unknown values fall back to `medium`, matching the original's `else` branch.
+     */
+    fun liveBufferFor(bufferSize: String?): BufferDurations = when (bufferSize) {
+        "small" -> BufferDurations(minMs = 3_000, maxMs = 10_000, playbackMs = 500, rebufferMs = 1_500)
+        "large" -> BufferDurations(minMs = 15_000, maxMs = 50_000, playbackMs = 2_000, rebufferMs = 5_000)
+        "very_large" -> BufferDurations(minMs = 30_000, maxMs = 120_000, playbackMs = 3_000, rebufferMs = 8_000)
+        else -> BufferDurations(minMs = 5_000, maxMs = 20_000, playbackMs = 800, rebufferMs = 2_000)
+    }
 }

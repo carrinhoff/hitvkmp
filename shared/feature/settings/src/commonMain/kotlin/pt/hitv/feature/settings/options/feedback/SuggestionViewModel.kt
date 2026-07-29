@@ -11,6 +11,11 @@ import kotlinx.datetime.Clock
 import pt.hitv.core.model.enums.SuggestionCategory
 
 data class SuggestionUiState(
+    // Mirrors the original's SuggestionUiState (hitv/feature/settings/.../SuggestionViewModel.kt:18-19).
+    // `isSubmitting` drives the submit button's disabled/"Submitting..." state and cannot be
+    // derived from `submissionStatus`, which is null both before a submit and after the result
+    // has been consumed by onSubmissionHandled().
+    val isSubmitting: Boolean = false,
     val submissionStatus: Boolean? = null
 )
 
@@ -27,12 +32,13 @@ class SuggestionViewModel(
 
     fun submitSuggestion(category: SuggestionCategory, text: String) {
         val timestamp = Clock.System.now().toEpochMilliseconds()
+        _uiState.update { it.copy(isSubmitting = true) }
         viewModelScope.launch {
             try {
                 val success = submitFeedback(category.displayText, text, timestamp)
-                _uiState.update { it.copy(submissionStatus = success) }
+                _uiState.update { it.copy(isSubmitting = false, submissionStatus = success) }
             } catch (_: Exception) {
-                _uiState.update { it.copy(submissionStatus = false) }
+                _uiState.update { it.copy(isSubmitting = false, submissionStatus = false) }
             }
         }
     }

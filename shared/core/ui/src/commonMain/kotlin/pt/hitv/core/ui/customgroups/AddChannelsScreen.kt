@@ -27,6 +27,9 @@ import coil3.compose.AsyncImage
 import pt.hitv.core.model.Channel
 import pt.hitv.core.designsystem.theme.getThemeColors
 import pt.hitv.core.designsystem.theme.ThemeManager
+import app.cash.paging.compose.collectAsLazyPagingItems
+import app.cash.paging.compose.itemKey
+import app.cash.paging.LoadStateLoading
 
 /**
  * Screen for adding channels to a custom group.
@@ -64,8 +67,9 @@ fun AddChannelsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedChannels by viewModel.selectedChannels.collectAsState()
     val existingChannelIds by viewModel.existingChannelIds.collectAsState()
-    val allChannels by viewModel.allChannels.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    // Paged rather than a whole-table list — see AddChannelsViewModel for why.
+    val channels = viewModel.channels.collectAsLazyPagingItems()
+    val isLoading = channels.loadState.refresh is LoadStateLoading
 
     val themeColors = getThemeColors()
 
@@ -250,7 +254,7 @@ fun AddChannelsScreen(
                 ) {
                     CircularProgressIndicator(color = themeColors.primaryColor)
                 }
-            } else if (allChannels.isEmpty()) {
+            } else if (channels.itemCount == 0) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -279,10 +283,11 @@ fun AddChannelsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
-                        count = allChannels.size,
-                        key = { index -> allChannels[index].id ?: index }
+                        count = channels.itemCount,
+                        key = channels.itemKey { it.id ?: it.name.orEmpty() },
                     ) { index ->
-                        val channel = allChannels[index]
+                        // Null while a placeholder page is still loading.
+                        val channel = channels[index] ?: return@items
                         val channelId = channel.id?.toLongOrNull() ?: 0L
                         val isInGroup = existingChannelIds.contains(channelId)
                         val isSelected = selectedChannels.any { it.id == channel.id }

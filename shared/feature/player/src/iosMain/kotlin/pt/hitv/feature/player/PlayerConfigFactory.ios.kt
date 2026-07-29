@@ -29,3 +29,19 @@ internal fun AVPlayerItem.applyVodBufferProfile() {
 internal fun AVPlayer.applyVodBufferProfile() {
     automaticallyWaitsToMinimizeStalling = false
 }
+
+/**
+ * Applies the user's "Live Buffer Size" setting to a live channel item.
+ *
+ * The port stored that preference but no player read it on either platform, so the control was
+ * inert. Android now feeds it to `DefaultLoadControl`; the nearest iOS equivalent is
+ * [AVPlayerItem.preferredForwardBufferDuration], set from the same `maxMs` the Android load
+ * control uses as its maximum buffer.
+ *
+ * @param bufferSize the stored preference value (`small` / `medium` / `large` / `very_large`);
+ *   anything else falls back to `medium`, matching the original's `else` branch.
+ */
+internal fun AVPlayerItem.applyLiveBufferProfile(bufferSize: String?) {
+    preferredForwardBufferDuration =
+        PlayerConfigFactory.liveBufferFor(bufferSize).maxMs / 1000.0
+}

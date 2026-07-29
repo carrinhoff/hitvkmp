@@ -21,4 +21,8 @@ data class EPGEvent(
             val now = Clock.System.now().toEpochMilliseconds()
             return now in start..end
         }
+
+    /** Whether this programme has already finished. Mirrors the original's `isPast`. */
+    val isPast: Boolean
+        get() = Clock.System.now().toEpochMilliseconds() > end
 }

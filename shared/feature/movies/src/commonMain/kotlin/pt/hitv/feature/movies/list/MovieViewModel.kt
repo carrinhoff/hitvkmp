@@ -24,6 +24,7 @@ import pt.hitv.core.data.paging.SORT_ADDED
 import pt.hitv.core.common.PreferencesHelper
 import pt.hitv.core.data.manager.UserSessionManager
 import pt.hitv.core.sync.SyncStateManager
+import kotlinx.coroutines.delay
 
 /**
  * UI State for Movie screen following NiA unidirectional data flow pattern.
@@ -104,8 +105,22 @@ class MovieViewModel(
         }
     }
 
+    /** Cancelled and restarted on each keystroke so only a settled query is stored. */
+    private var searchSaveJob: Job? = null
+
+    /**
+     * Records a search term, debounced by [SEARCH_HISTORY_DEBOUNCE_MS] and only once the query
+     * reaches [SEARCH_HISTORY_MIN_LENGTH] characters.
+     *
+     * The port called this on every keystroke with no minimum, so typing "matrix" wrote six
+     * entries — "m", "ma", "mat", "matr", "matri", "matrix" — and the history list filled with
+     * prefixes of a single search. The original debounces 1.5s and requires 3 characters.
+     */
     private fun rememberSearchTerm(query: String) {
-        viewModelScope.launch {
+        searchSaveJob?.cancel()
+        if (query.length < SEARCH_HISTORY_MIN_LENGTH) return
+        searchSaveJob = viewModelScope.launch {
+            delay(SEARCH_HISTORY_DEBOUNCE_MS)
             searchHistoryRepository.add(
                 userId = userIdFlow.value,
                 kind = SearchHistoryRepository.KIND_MOVIE,
@@ -399,6 +414,14 @@ class MovieViewModel(
     fun resetState() {
         _uiState.value = MovieUiState()
         categoryManuallySet = false
+    }
+
+    private companion object {
+        /** Matches the original's 1.5s debounce before a search term is persisted. */
+        const val SEARCH_HISTORY_DEBOUNCE_MS = 1_500L
+
+        /** Matches the original's `trimmedQuery.length >= 3` guard. */
+        const val SEARCH_HISTORY_MIN_LENGTH = 3
     }
 }
 

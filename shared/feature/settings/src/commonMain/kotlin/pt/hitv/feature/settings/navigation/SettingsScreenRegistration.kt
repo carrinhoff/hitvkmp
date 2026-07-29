@@ -17,4 +17,10 @@ fun registerSettingsScreens() {
     ScreenRegistry.register(HitvScreen.PARENTAL_CATEGORY_LOCK) { ParentalCategoryLockVoyagerScreen() }
     ScreenRegistry.register(HitvScreen.MANAGE_CATEGORIES) { ManageCategoriesVoyagerScreen() }
     ScreenRegistry.register(HitvScreen.BACKGROUND_SYNC_SETTINGS) { BackgroundSyncSettingsVoyagerScreen() }
+    ScreenRegistry.register(HitvScreen.FEEDBACK) { FeedbackVoyagerScreen() }
+    // HitvScreen.LIVE_EPG is deliberately NOT registered: the full EPG grid
+    // (the original's EpgScreenMobile) has not been ported yet, so there is no screen to
+    // create. The More Options row that navigated here is hidden behind
+    // MobileMoreOptionsScreen's `showEpgEntry` flag for the same reason — re-enable both
+    // together. See KMP_MIGRATION_AUDIT.md P0 #8.
 }

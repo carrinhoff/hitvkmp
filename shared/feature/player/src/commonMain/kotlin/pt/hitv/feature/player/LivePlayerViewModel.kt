@@ -3,6 +3,7 @@ package pt.hitv.feature.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -36,8 +37,23 @@ class LivePlayerViewModel(
 
     fun setSelectedPosition(position: String) { _uiState.update { it.copy(selectedPosition = position) } }
 
+
+    // These three collectors observe the database and therefore never complete. Each is held in a
+    // Job and cancelled before relaunching, so repeated calls replace the collector instead of
+    // stacking another one on top.
+    //
+    // This matters because the callers do re-invoke: `saveFavoriteChannel` calls `getFavorites()`
+    // after every toggle. That was harmless while these flows emitted once and completed; once they
+    // became reactive it meant one permanently-live collector — and one SQLDelight listener — per
+    // toggle, all writing the same state. The refresh call is now redundant (the flow updates
+    // itself) but is kept, since with the guard it simply restarts the collector.
+    private var channelsJob: Job? = null
+    private var favoritesJob: Job? = null
+    private var categoriesJob: Job? = null
+
     fun fetchChannelsFromDB() {
-        viewModelScope.launch(Dispatchers.IO) {
+        channelsJob?.cancel()
+        channelsJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.getAllChannelsFlow().catch { _uiState.update { it.copy(cachedChannels = null) } }
                     .collect { channelList -> _uiState.update { it.copy(cachedChannels = channelList) } }
@@ -60,7 +76,8 @@ class LivePlayerViewModel(
     }
 
     fun getFavorites() {
-        viewModelScope.launch {
+        favoritesJob?.cancel()
+        favoritesJob = viewModelScope.launch {
             repository.getFavoritesChannel().catch { }.collect { channels -> _uiState.update { it.copy(favorites = channels) } }
         }
     }
@@ -122,7 +139,8 @@ class LivePlayerViewModel(
     }
 
     fun fetchChannelCategories() {
-        viewModelScope.launch {
+        categoriesJob?.cancel()
+        categoriesJob = viewModelScope.launch {
             try {
                 repository.getAllChannelCategories(getCurrentUserId()).catch { _uiState.update { it.copy(categories = emptyList()) } }
                     .collect { categories -> _uiState.update { it.copy(categories = categories) } }

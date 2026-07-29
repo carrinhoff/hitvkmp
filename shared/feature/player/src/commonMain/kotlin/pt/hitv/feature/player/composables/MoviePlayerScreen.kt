@@ -73,6 +73,12 @@ fun MoviePlayerScreen(
     onAspectRatioToggle: () -> Unit,
     onSleepTimerSelect: (Long) -> Unit,
     onSleepTimerCancel: () -> Unit,
+    // Non-null shows the shared PlaybackErrorDialog. The original surfaced VOD failures via
+    // `errorMessage.value` + a Toast (MoviePlayerActivity.kt:944-950); the port previously had
+    // no error path at all on this screen, so a failed movie was just a black rectangle.
+    errorMessage: String? = null,
+    onRetry: (() -> Unit)? = null,
+    onDismissError: (() -> Unit)? = null,
 ) {
     VodOverlay(
         title = movieTitle,
@@ -86,6 +92,9 @@ fun MoviePlayerScreen(
         hasNextEpisode = false,
         onPreviousEpisode = null,
         onNextEpisode = null,
+        errorMessage = errorMessage,
+        onRetry = onRetry,
+        onDismissError = onDismissError,
     )
 }
 
@@ -102,6 +111,9 @@ fun SeriesPlayerScreen(
     onAspectRatioToggle: () -> Unit,
     onSleepTimerSelect: (Long) -> Unit,
     onSleepTimerCancel: () -> Unit,
+    errorMessage: String? = null,
+    onRetry: (() -> Unit)? = null,
+    onDismissError: (() -> Unit)? = null,
 ) {
     VodOverlay(
         title = episodeTitle,
@@ -115,6 +127,9 @@ fun SeriesPlayerScreen(
         hasNextEpisode = hasNextEpisode,
         onPreviousEpisode = onPreviousEpisode,
         onNextEpisode = onNextEpisode,
+        errorMessage = errorMessage,
+        onRetry = onRetry,
+        onDismissError = onDismissError,
     )
 }
 
@@ -131,6 +146,9 @@ private fun VodOverlay(
     hasNextEpisode: Boolean,
     onPreviousEpisode: (() -> Unit)?,
     onNextEpisode: (() -> Unit)?,
+    errorMessage: String?,
+    onRetry: (() -> Unit)?,
+    onDismissError: (() -> Unit)?,
 ) {
     // Top bar auto-hides after 5 s of inactivity, same cadence as original.
     var showTopBar by remember { mutableStateOf(true) }
@@ -249,6 +267,17 @@ private fun VodOverlay(
                 onDurationSelected = { onSleepTimerSelect(it); showSleepTimerDialog = false },
                 onCancel = { onSleepTimerCancel(); showSleepTimerDialog = false },
                 onDismiss = { showSleepTimerDialog = false },
+            )
+        }
+
+        // Reuses the same dialog the channel player shows, so a failed movie/episode looks
+        // like a failed channel rather than a black screen. Dismissing leaves the player
+        // mounted (the user can still hit back); Retry re-prepares the item.
+        if (errorMessage != null) {
+            PlaybackErrorDialog(
+                errorMessage = errorMessage,
+                onRetry = { onRetry?.invoke() },
+                onDismiss = { onDismissError?.invoke() },
             )
         }
     }

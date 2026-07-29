@@ -42,7 +42,15 @@ fun LoginScreen(
     viewModel: LoginViewModel,
     analyticsHelper: AnalyticsHelper,
     preferencesHelper: PreferencesHelper,
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    // Pre-fill values for the Xtream form. Mirrors the original's
+    // hitv/feature/auth/.../login/LoginScreen.kt:60-62, which takes these as parameters
+    // defaulting to "" and is fed from BuildConfig.DEFAULT_* — empty in release, read from
+    // the gitignored local.properties in debug. Keep the defaults empty: anything hardcoded
+    // here ships in both release binaries.
+    defaultUsername: String = "",
+    defaultPassword: String = "",
+    defaultUrl: String = ""
 ) {
     val themeColors = getThemeColors()
     val uiState by viewModel.uiState.collectAsState()
@@ -56,10 +64,10 @@ fun LoginScreen(
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // Form fields — pre-filled with debug credentials
-    var username by remember { mutableStateOf("b7be78a330") }
-    var password by remember { mutableStateOf("8ba28474b8") }
-    var url by remember { mutableStateOf("http://xdooh.com/") }
+    // Form fields
+    var username by remember { mutableStateOf(defaultUsername) }
+    var password by remember { mutableStateOf(defaultPassword) }
+    var url by remember { mutableStateOf(defaultUrl) }
 
     // Analytics
     LaunchedEffect(Unit) {

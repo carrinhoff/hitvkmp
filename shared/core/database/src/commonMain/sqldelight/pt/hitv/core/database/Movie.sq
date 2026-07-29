@@ -94,7 +94,7 @@ INNER JOIN MovieInfo mi ON m.streamId = CAST(mi.streamIdCreator AS TEXT) AND m.u
 WHERE m.userId = ? AND mi.playbackPosition > 0
 GROUP BY m.streamId
 ORDER BY m.lastViewedTimestamp DESC
-LIMIT ?;
+LIMIT ? OFFSET ?;
 
 -- FTS search
 searchFts:

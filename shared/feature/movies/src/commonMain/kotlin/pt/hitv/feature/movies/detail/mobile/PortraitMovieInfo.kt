@@ -45,6 +45,7 @@ import pt.hitv.core.model.movieInfo.Info
 import pt.hitv.core.model.movieInfo.MovieData
 import pt.hitv.feature.movies.detail.shared.CastSection
 import pt.hitv.feature.movies.detail.shared.MovieDetailRow
+import pt.hitv.core.common.util.YouTubeUrl
 
 @Composable
 fun PortraitMovieInfo(
@@ -164,7 +165,7 @@ fun PortraitMovieInfo(
                         Text(buttonText, color = getThemeColors().textColor)
                     }
 
-                    if (!movieInfo.youtubeTrailer.isNullOrBlank()) {
+                    if (YouTubeUrl.extractVideoId(movieInfo.youtubeTrailer) != null) {
                         OutlinedButton(
                             onClick = onTrailerClick,
                             modifier = Modifier.weight(1f)

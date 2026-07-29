@@ -10,6 +10,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import org.koin.compose.koinInject
 import pt.hitv.core.common.PreferencesHelper
+import pt.hitv.core.domain.manager.ParentalControlManager
+import pt.hitv.core.sync.BackgroundSyncBootstrapper
 import pt.hitv.core.domain.repositories.AccountManagerRepository
 import pt.hitv.core.domain.repositories.StreamRepository
 import pt.hitv.core.navigation.adaptive.AdaptiveScaffold
@@ -34,11 +36,23 @@ fun HitvApp() {
     val preferencesHelper: PreferencesHelper = koinInject()
     val accountManagerRepository: AccountManagerRepository = koinInject()
     val streamRepository: StreamRepository = koinInject()
+    val parentalControlManager: ParentalControlManager = koinInject()
+    val backgroundSyncBootstrapper: BackgroundSyncBootstrapper = koinInject()
 
     // Tri-state boot: Checking (gate AdaptiveScaffold until we know), LoggedIn, LoggedOut.
     var bootState by remember { mutableStateOf(BootState.Checking) }
 
     LaunchedEffect(Unit) {
+        // Expire any "until app closes" parental-control session. This had no call site
+        // anywhere, so that timeout option silently behaved as "never expires" — a user who
+        // unlocked once stayed unlocked across every subsequent launch.
+        runCatching { parentalControlManager.clearSessionOnAppStart() }
+
+        // Re-arm background sync if the user enabled it. Previously this only happened when the
+        // More Options screen was opened, so enabling sync and then never revisiting that screen
+        // left the OS tasks unscheduled.
+        runCatching { backgroundSyncBootstrapper.reArmIfEnabled() }
+
         val userId = preferencesHelper.getUserId()
         if (userId == -1) {
             bootState = BootState.LoggedOut

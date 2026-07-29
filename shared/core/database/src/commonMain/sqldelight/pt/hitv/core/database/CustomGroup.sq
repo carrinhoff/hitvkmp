@@ -30,6 +30,24 @@ CREATE INDEX custom_group_channel_channel_idx ON CustomGroupChannel(channelId);
 selectAllGroups:
 SELECT * FROM CustomGroup ORDER BY sortOrder ASC, groupName ASC;
 
+-- Groups plus their channel counts in one query.
+--
+-- Replaces selectAllGroups followed by a countChannelsInGroup per row. Two reasons, and the second
+-- is the important one:
+--   1. It removes an N+1 — one query per group on a screen that lists all of them.
+--   2. SQLDelight keys change notifications on the tables a query reads. The old pairing was
+--      observed on CustomGroup alone, so adding or removing a channel changed the count with
+--      nothing to announce it and the list kept showing the previous number. Reading both tables
+--      here means membership changes notify too.
+selectAllGroupsWithChannelCount:
+SELECT g.groupId, g.groupName, g.groupIcon, g.createdAt, g.updatedAt, g.sortOrder,
+       g.isPinned, g.isHidden, g.isDefault,
+       COUNT(gc.id) AS channelCount
+FROM CustomGroup g
+LEFT JOIN CustomGroupChannel gc ON gc.groupId = g.groupId
+GROUP BY g.groupId
+ORDER BY g.sortOrder ASC, g.groupName ASC;
+
 selectAllGroupsSorted:
 SELECT * FROM CustomGroup ORDER BY isPinned DESC, isHidden ASC, sortOrder ASC, groupName ASC;
 

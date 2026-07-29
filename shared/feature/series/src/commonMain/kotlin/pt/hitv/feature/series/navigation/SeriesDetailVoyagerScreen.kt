@@ -12,7 +12,8 @@ import pt.hitv.core.navigation.SeriesDetailArgs
 import pt.hitv.feature.series.detail.SeriesInfoContent
 import pt.hitv.feature.series.detail.SeriesInfoViewModel
 import pt.hitv.feature.series.list.SeriesViewModel
-import pt.hitv.feature.player.platform.launchChannelPlayer
+import pt.hitv.feature.player.platform.launchSeriesPlayer
+import pt.hitv.core.common.util.YouTubeUrl
 
 class SeriesDetailVoyagerScreen(
     private val seriesId: String
@@ -38,24 +39,23 @@ class SeriesDetailVoyagerScreen(
             analyticsHelper = analyticsHelper,
             onNavigateBack = { navigator.pop() },
             onPlayEpisode = { seasonNumber, episodeIndex ->
-                // Build episode URL and launch player
-                val seriesUiState = seriesViewModel.uiState.value
-                val (_, seasonsMap) = seriesUiState.seasonEpisodeData
-                val season = seasonsMap.keys.find { it.seasonNumber == seasonNumber }
-                val episodes = if (season != null) seasonsMap[season] ?: emptyList() else emptyList()
-                val episode = episodes.getOrNull(episodeIndex)
-                if (episode != null) {
-                    val host = preferencesHelper.getHostUrl()
-                    val user = preferencesHelper.getUsername()
-                    val pass = preferencesHelper.getPassword()
-                    val url = "${host}series/$user/$pass/${episode.id}.${episode.containerExtension ?: "m3u8"}"
-                    launchChannelPlayer(url = url, name = episode.title ?: "Episode ${episode.episodeNum}")
-                }
+                // Route to the SERIES player, not the channel player. It resolves the
+                // episode itself from (seriesId, season, index) via SeriesPlayerViewModel,
+                // which is what gives us per-episode resume, progress saving and
+                // prev/next — all of which are lost when an episode is handed to the
+                // live-TV player as a bare URL.
+                launchSeriesPlayer(
+                    seriesId = seriesId,
+                    seasonNumber = seasonNumber,
+                    episodeIndex = episodeIndex
+                )
             },
-            onPlayTrailer = { youtubeUrl ->
-                try {
-                    uriHandler.openUri("https://www.youtube.com/watch?v=$youtubeUrl")
-                } catch (_: Exception) {}
+            onPlayTrailer = { rawTrailer ->
+                YouTubeUrl.watchUrlOrNull(rawTrailer)?.let { url ->
+                    try {
+                        uriHandler.openUri(url)
+                    } catch (_: Exception) {}
+                }
             }
         )
     }

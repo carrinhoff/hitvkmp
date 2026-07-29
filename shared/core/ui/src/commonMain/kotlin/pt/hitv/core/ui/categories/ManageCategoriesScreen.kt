@@ -177,15 +177,24 @@ fun ManageCategoriesScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Mode Switcher
-            ModernModeSelector(
-                selectedMode = screenMode,
-                onModeSelected = { screenMode = it },
-                primaryColor = primaryColor,
-                textColor = textColor
-            )
+            // Mode Switcher — only shown when there is a second mode to switch to.
+            //
+            // No caller supplies [customGroupsContent], so the Custom Groups tab rendered a
+            // placeholder that just said "Custom Groups" and nothing else: a tab that looks
+            // broken. Custom groups are already reachable from the Channels screen, so this was a
+            // dead duplicate entry point rather than a missing feature. Hiding the switcher when
+            // the slot is empty removes the dead UI without pretending the tab works; supply
+            // [customGroupsContent] and the switcher comes back.
+            if (customGroupsContent != null) {
+                ModernModeSelector(
+                    selectedMode = screenMode,
+                    onModeSelected = { screenMode = it },
+                    primaryColor = primaryColor,
+                    textColor = textColor
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+            }
 
             when (screenMode) {
                 ManagementScreenMode.CATEGORIES -> {

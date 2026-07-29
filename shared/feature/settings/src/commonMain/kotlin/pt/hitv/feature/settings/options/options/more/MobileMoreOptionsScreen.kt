@@ -94,9 +94,18 @@ fun MobileMoreOptionsScreen(
     onRefreshDataClick: () -> Unit,
     onTipsAndFeaturesClick: () -> Unit,
     onEpgClick: () -> Unit,
+    onBackgroundSyncDetailsClick: () -> Unit,
     onFeedbackClick: () -> Unit,
     onDiscordClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * Whether to show the "Live with EPG" row. Now `true`: the EPG grid has been ported
+     * (`pt.hitv.feature.channels.epg.EpgScreenMobile`) and `HitvScreen.LIVE_EPG` is registered in
+     * `registerChannelsScreens()`. It was temporarily `false` while the row navigated to an
+     * unregistered route, which threw from `ScreenRegistry.create` and killed the app.
+     * See KMP_MIGRATION_AUDIT.md P0 #8.
+     */
+    showEpgEntry: Boolean = true
 ) {
     val theme = getThemeColors()
     val primaryColor = theme.primaryColor
@@ -249,8 +258,11 @@ fun MobileMoreOptionsScreen(
                 sectionLabel("Data & Sync", primaryColor)
 
                 rows(
-                    FeatureItem("epg", "Live with EPG", "Notifications for upcoming programs", Icons.Rounded.LiveTv, onClick = onEpgClick),
-                    FeatureItem("refresh_data", "Refresh Data", "Update channels, movies and series", Icons.Rounded.Refresh, onClick = onRefreshDataClick)
+                    *listOfNotNull(
+                        FeatureItem("epg", "Live with EPG", "Notifications for upcoming programs", Icons.Rounded.LiveTv, onClick = onEpgClick)
+                            .takeIf { showEpgEntry },
+                        FeatureItem("refresh_data", "Refresh Data", "Update channels, movies and series", Icons.Rounded.Refresh, onClick = onRefreshDataClick)
+                    ).toTypedArray()
                 ) { feature ->
                     FeatureCard(feature, primaryColor, textColor, textSecondaryColor)
                 }
@@ -273,6 +285,22 @@ fun MobileMoreOptionsScreen(
                         textColor = textColor,
                         textSecondaryColor = textSecondaryColor
                     )
+                }
+
+                // Route into the full Background Sync screen. It was registered and complete —
+                // last-run / next-run readouts per task and the battery-optimization row — but
+                // nothing ever navigated to it, so all of that was unreachable. The inline card
+                // above has none of it. See KMP_MIGRATION_AUDIT.md.
+                rows(
+                    FeatureItem(
+                        "background_sync_details",
+                        "Sync Status & Battery",
+                        "Last run, next run, and battery settings",
+                        Icons.Rounded.Speed,
+                        onClick = onBackgroundSyncDetailsClick
+                    )
+                ) { feature ->
+                    FeatureCard(feature, primaryColor, textColor, textSecondaryColor)
                 }
 
                 // ——— Feedback & Support

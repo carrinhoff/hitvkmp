@@ -173,11 +173,27 @@ VALUES (?, ?, ?);
 deleteProgrammesByUserId:
 DELETE FROM Programme WHERE userId = ?;
 
+-- Deliberately filtered by Title.userId rather than by a subquery over Programme.
+--
+-- These used to read `WHERE programme_id IN (SELECT id FROM Programme WHERE userId = ?)`, which
+-- silently depends on being run BEFORE deleteProgrammesByUserId: once the parent rows are gone the
+-- subquery returns nothing and every Title/Description row is stranded with no way to ever reach
+-- it again. `AccountManagerRepositoryImpl.deleteUserAndRelatedData` did exactly that -- deleted
+-- Programme first -- so removing an account leaked its entire EPG title/description set forever,
+-- growing the database on every add/remove cycle.
+--
+-- The declared `REFERENCES Programme(id) ON DELETE CASCADE` does not save it: SQLite enforces
+-- foreign keys only when `PRAGMA foreign_keys = ON` is set per connection, and neither driver sets
+-- it. See DatabaseDriverFactory for why that is left alone.
+--
+-- Both tables carry `userId NOT NULL`, so filtering on it directly is order-independent, matches
+-- every sibling delete in the account teardown, and drops a correlated subquery over a table that
+-- holds hundreds of thousands of EPG rows.
 deleteTitlesByUserId:
-DELETE FROM Title WHERE programme_id IN (SELECT id FROM Programme WHERE userId = ?);
+DELETE FROM Title WHERE userId = ?;
 
 deleteDescriptionsByUserId:
-DELETE FROM Description WHERE programme_id IN (SELECT id FROM Programme WHERE userId = ?);
+DELETE FROM Description WHERE userId = ?;
 
 deleteEpgChannelsByUserId:
 DELETE FROM EpgChannel WHERE userId = ?;

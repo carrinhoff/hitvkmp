@@ -9,6 +9,8 @@ import app.cash.paging.PagingSourceLoadResult
 import app.cash.paging.PagingSourceLoadResultPage
 import app.cash.paging.PagingSourceLoadResultError
 import app.cash.paging.PagingState
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.*
@@ -26,6 +28,7 @@ import pt.hitv.core.data.util.SearchUtils
 import pt.hitv.core.database.CategoryTvShowQueries
 import pt.hitv.core.database.HitvDatabase
 import pt.hitv.core.database.SeriesInfoQueries
+import app.cash.sqldelight.db.SqlDriver
 import pt.hitv.core.database.TvShowQueries
 import pt.hitv.core.domain.repositories.TvShowRepository
 import pt.hitv.core.model.*
@@ -38,7 +41,8 @@ class TvShowRepositoryImpl(
     private val categoryTvShowQueries: CategoryTvShowQueries,
     private val seriesInfoQueries: SeriesInfoQueries,
     private val database: HitvDatabase,
-    private val preferencesHelper: PreferencesHelper
+    private val preferencesHelper: PreferencesHelper,
+    private val driver: SqlDriver
 ) : TvShowRepository {
 
     private val userId: Int get() = preferencesHelper.getUserId()
@@ -278,12 +282,16 @@ class TvShowRepositoryImpl(
     }
 
     override suspend fun getFavoritesTvShow(): Flow<List<TvShow>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val tvShows = tvShowQueries.selectFavorites(userId.toLong())
-                .executeAsList()
-                .map { it.toTvShow() }
-            emit(tvShows)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                tvShowQueries.selectFavorites(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toTvShow() } }
+            )
+        }
     }
 
     override suspend fun saveRecentlyViewedTvShow(tvShow: TvShow) {
@@ -295,12 +303,16 @@ class TvShowRepositoryImpl(
     }
 
     override suspend fun getRecentlyViewedTvShowsFlow(): Flow<List<TvShow>> {
+        // Reactive: a Flow return type promises updates, and this used to emit exactly once.
+        // Wrapped in flow{} so `userId` is still resolved at collection time, as before.
         return flow {
-            val tvShows = tvShowQueries.selectRecentlyViewed(userId.toLong())
-                .executeAsList()
-                .map { it.toTvShow() }
-            emit(tvShows)
-        }.flowOn(Dispatchers.IO)
+            emitAll(
+                tvShowQueries.selectRecentlyViewed(userId.toLong())
+                    .asFlow()
+                    .mapToList(Dispatchers.IO)
+                    .map { rows -> rows.map { it.toTvShow() } }
+            )
+        }
     }
 
     override suspend fun updatePlaybackPosition(id: String, position: Long) {
@@ -357,18 +369,16 @@ class TvShowRepositoryImpl(
                     searchQuery = searchQuery,
                     sortOrder = sortOrder,
                     isAscending = isAscending
-                )
+                ).also { it.invalidateOnChangeTo(driver, PagedTables.TV_SHOW) }
             }
         ).flow
     }
 
     override fun getAllTvShowCategories(userId: Int): Flow<List<Category>> {
-        return flow {
-            val categories = categoryTvShowQueries.selectVisibleSorted(userId.toLong())
-                .executeAsList()
-                .map { it.toCategory() }
-            emit(categories)
-        }.flowOn(Dispatchers.IO)
+        return categoryTvShowQueries.selectVisibleSorted(userId.toLong())
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { rows -> rows.map { it.toCategory() } }
     }
 
     override suspend fun getSeriesByCategory(categoryId: String, limit: Int): List<TvShow> {
@@ -455,7 +465,7 @@ class TvShowRepositoryImpl(
     override suspend fun getContinueWatchingSeries(limit: Int): List<TvShow> {
         return withContext(Dispatchers.IO) {
             try {
-                tvShowQueries.selectContinueWatching(userId.toLong(), limit.toLong())
+                tvShowQueries.selectContinueWatching(userId.toLong(), limit.toLong(), 0L)
                     .executeAsList()
                     .map { it.toTvShow() }
             } catch (e: Exception) {
@@ -502,6 +512,17 @@ private class TvShowPagingSource(
 
                 categoryId == MOVIE_FILTER_LAST_ADDED -> {
                     tvShowQueries.selectLastAddedPaged(userId.toLong(), pageSize.toLong(), offset.toLong())
+                        .executeAsList().map { it.toTvShow() }
+                }
+
+                // "See All" on the series Continue Watching row passes this filter, and there was
+                // no branch for it — so it fell through to the category lookup below and queried
+                // for a category literally named "ContinueWatching", which matches nothing. The
+                // screen opened empty. The movie side has had this branch all along
+                // (MovieRepositoryImpl:532); only series was missing it, and the query it needs
+                // already existed (TvShow.sq:95).
+                categoryId == MOVIE_FILTER_CONTINUE_WATCHING -> {
+                    tvShowQueries.selectContinueWatching(userId.toLong(), pageSize.toLong(), offset.toLong())
                         .executeAsList().map { it.toTvShow() }
                 }
 

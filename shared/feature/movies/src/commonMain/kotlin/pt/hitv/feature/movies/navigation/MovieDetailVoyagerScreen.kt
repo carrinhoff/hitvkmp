@@ -11,6 +11,7 @@ import pt.hitv.core.navigation.MovieDetailArgs
 import pt.hitv.feature.movies.detail.MovieInfoContent
 import pt.hitv.feature.movies.detail.MovieInfoViewModel
 import pt.hitv.feature.player.platform.launchMoviePlayer
+import pt.hitv.core.common.util.YouTubeUrl
 
 class MovieDetailVoyagerScreen(
     private val streamId: String?
@@ -34,10 +35,14 @@ class MovieDetailVoyagerScreen(
             onPlayMovie = { movieUrl, movieTitle ->
                 launchMoviePlayer(movieUrl, movieTitle)
             },
-            onPlayTrailer = { youtubeUrl ->
-                try {
-                    uriHandler.openUri("https://www.youtube.com/watch?v=$youtubeUrl")
-                } catch (_: Exception) {}
+            onPlayTrailer = { rawTrailer ->
+                // Normalize first: the field may already be a full URL, in which case the old
+                // "watch?v=$raw" concatenation produced a broken link.
+                YouTubeUrl.watchUrlOrNull(rawTrailer)?.let { url ->
+                    try {
+                        uriHandler.openUri(url)
+                    } catch (_: Exception) {}
+                }
             }
         )
     }

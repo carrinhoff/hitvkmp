@@ -8,4 +8,7 @@ fun registerAuthScreens() {
         val onLoginSuccess = args as? (() -> Unit) ?: {}
         LoginVoyagerScreen(onLoginSuccess)
     }
+    ScreenRegistry.register(HitvScreen.SWITCH_ACCOUNT) {
+        SwitchAccountVoyagerScreen()
+    }
 }

@@ -54,6 +54,7 @@ import pt.hitv.core.model.seriesInfo.Season
 import pt.hitv.core.model.seriesInfo.SeriesInfo
 import pt.hitv.feature.series.detail.shared.MobileEpisodeItem
 import pt.hitv.feature.series.detail.shared.SeriesMetadata
+import pt.hitv.core.common.util.YouTubeUrl
 
 @Composable
 fun MobileLandscapeSeriesInfoLayout(
@@ -442,7 +443,9 @@ private fun MobileSeriesHeader(
 
         SeriesMetadata(seriesInfo = seriesInfo)
 
-        seriesInfo.youtubeTrailer?.let { trailerUrl ->
+        // Gate on a *usable* id, not merely non-null: the field often holds junk or a URL, and
+        // a non-null check rendered a Trailer button that led nowhere.
+        seriesInfo.youtubeTrailer?.takeIf { YouTubeUrl.extractVideoId(it) != null }?.let { trailerUrl ->
             Button(
                 onClick = { onTrailerClicked(trailerUrl) },
                 modifier = Modifier.fillMaxWidth(),

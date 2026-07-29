@@ -16,8 +16,16 @@
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
+    <!--
+        Build number comes from the build setting, not a literal.
+        It used to be hardcoded to 38, which meant `xcodebuild CURRENT_PROJECT_VERSION=...` had no
+        effect: every CI archive would have shipped as build 38 regardless. The first upload would
+        have succeeded (TestFlight's highest is 34) and every one after it would have been rejected
+        as a duplicate — a confusing failure, because the log would show a build number that the
+        workflow never chose.
+    -->
     <key>CFBundleVersion</key>
-    <string>37</string>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>
@@ -53,9 +61,14 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
+    <!--
+        Only `processing` is declared, because only BGProcessingTaskRequest is submitted — see
+        BackgroundSyncManager.ios.kt. `fetch` was declared alongside it while the code submitted
+        BGAppRefreshTaskRequest; now that both submission sites use processing, keeping `fetch`
+        would be an unused background mode, which is a routine App Review question.
+    -->
     <key>UIBackgroundModes</key>
     <array>
-        <string>fetch</string>
         <string>processing</string>
     </array>
     <key>BGTaskSchedulerPermittedIdentifiers</key>

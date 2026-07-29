@@ -1,6 +1,10 @@
 package pt.hitv.core.data.manager
 
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOne
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
@@ -26,11 +30,15 @@ class ParentalControlManagerImpl(
     private val sessionTimeout = 30 * 60 * 1000L // 30 minutes
 
     companion object {
-        const val DEFAULT_SESSION_TIMEOUT_MINUTES = 30
         const val SESSION_TIMEOUT_KEY = "parental_control_session_timeout"
         const val LAST_UNLOCK_TIME_KEY = "parental_control_last_unlock_time"
-        const val SESSION_TIMEOUT_UNTIL_APP_CLOSES = -1
-        const val SESSION_TIMEOUT_ALWAYS_ASK = -2
+
+        // Aliased to the domain interface so the settings picker and the session logic cannot
+        // drift apart. They already had: the picker stored 0 for "always ask" while this code
+        // only recognises -2, so the strictest option silently behaved as the 30-minute default.
+        const val DEFAULT_SESSION_TIMEOUT_MINUTES = ParentalControlManager.DEFAULT_SESSION_TIMEOUT_MINUTES
+        const val SESSION_TIMEOUT_UNTIL_APP_CLOSES = ParentalControlManager.SESSION_TIMEOUT_UNTIL_APP_CLOSES
+        const val SESSION_TIMEOUT_ALWAYS_ASK = ParentalControlManager.SESSION_TIMEOUT_ALWAYS_ASK
     }
 
     private fun hasPremiumSubscription(): Boolean {
@@ -165,13 +173,22 @@ class ParentalControlManagerImpl(
         }
     }
 
+    /**
+     * Reactive, not a one-shot snapshot.
+     *
+     * This used to be `flow { emit(executeAsList()) }`, which emits once and completes — so the
+     * Locked Categories screen never reflected a toggle. The row would flip visually (local
+     * checkbox state) while the list behind it stayed stale, and any recomposition from another
+     * source would snap it back. Now that un-protecting is behind a PIN prompt, that reads as
+     * "I entered the right PIN and nothing happened".
+     *
+     * `asFlow().mapToList(...)` re-queries whenever SQLDelight sees a write to the table.
+     */
     override fun getAllParentalControls(userId: Int): Flow<List<ParentalControl>> {
-        return flow {
-            val controls = parentalControlQueries.selectAllByUserId(userId.toLong())
-                .executeAsList()
-                .map { it.toParentalControl() }
-            emit(controls)
-        }.flowOn(Dispatchers.IO)
+        return parentalControlQueries.selectAllByUserId(userId.toLong())
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { rows -> rows.map { it.toParentalControl() } }
     }
 
     override fun getParentalControlByCategory(categoryId: Int, userId: Int): Flow<ParentalControl?> {
@@ -183,10 +200,12 @@ class ParentalControlManagerImpl(
         }.flowOn(Dispatchers.IO)
     }
 
+    /** Reactive for the same reason as [getAllParentalControls] — the "N protected" label. */
     override fun getProtectedCategoriesCount(userId: Int): Flow<Int> {
-        return flow {
-            emit(parentalControlQueries.countProtected(userId.toLong()).executeAsOne().toInt())
-        }.flowOn(Dispatchers.IO)
+        return parentalControlQueries.countProtected(userId.toLong())
+            .asFlow()
+            .mapToOne(Dispatchers.IO)
+            .map { it.toInt() }
     }
 
     override suspend fun removeProtection(categoryId: Int, userId: Int) {

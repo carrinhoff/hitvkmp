@@ -22,5 +22,15 @@ expect object EpgStreamingLoader {
         username: String,
         password: String,
         onProgress: suspend (processed: Int, stage: String) -> Unit = { _, _ -> },
+        /**
+         * If non-null, only programmes for these EPG channel ids are retained. Matches the
+         * original's `XmltvParser.parse(channelFilter = …)`. This is the main lever keeping
+         * peak memory bounded on iOS, where the whole feed is materialized in a String.
+         */
+        channelFilter: Set<String>? = null,
+        /** Drop programmes that already ended before this instant. 0 disables. */
+        minEndTimeMs: Long = 0L,
+        /** Drop programmes starting after this instant. 0 disables. */
+        maxStartTimeMs: Long = 0L,
     ): EpgDomainData
 }
