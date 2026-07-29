@@ -134,22 +134,36 @@ What it does do is move the *shared* half of the port — the majority of it —
 desktop SQLite" to "verified running, assembled, on a device". The iOS-specific half is covered as
 far as it can be by §1.3, and the remainder is §7 Step 0.
 
-### 1.3 iOS test suites: written and compiling, **not yet executed anywhere**
+### 1.3 iOS test suites: **executed on a simulator in CI** — 129 of 139 passing
 
-> **Correction.** Earlier revisions of this section were titled "iOS code now executes in CI" and
-> the summaries above them counted the iOS suites alongside passing test totals. That was wrong,
-> and it overstated the evidence. `.github/workflows/verify.yml` is **untracked** — never
-> committed, never pushed — so GitHub Actions has never run it. Nothing in this working tree has
-> been committed at all. The iOS suites therefore have **never run**, on CI or anywhere else.
->
-> What is actually true of them today: they compile for `iosSimulatorArm64`, verified locally on
-> Windows via `compileTestKotlinIosSimulatorArm64`. Compilation catches signature and cinterop
-> shape errors — which it did, twice, including a comma in a test name that Kotlin/Native rejects.
-> It says nothing about runtime behaviour.
->
-> They will run on the first push once the workflow is committed, and that is the cheapest way to
-> get real iOS execution: it needs no hardware, only a commit. Until then, treat every claim below
-> as "written to test X", not "X verified".
+The workflow is committed and has run. The iOS suites are no longer hypothetical:
+
+| Suite | Result |
+|---|---|
+| `EpgStreamingLoaderIosTest` | ✅ the new `NSXMLParser` streaming path, entity decoding, control-char sanitising, a 2,000-programme document |
+| `DecompressContentIosTest` | ✅ real gzip inflation through zlib |
+| `AVPlayerTeardownIosTest` | ✅ the `onDispose` sequence the three player hosts use |
+| `AVPlayerPlaybackIosTest` | ✅ real HLS decode of Apple's bipbop stream |
+| every `commonTest` | ✅ compiled and run against Kotlin/Native |
+| `KeychainSettingsIosTest` (5) | ⚠️ **skipped — cannot run in this host** |
+| `KeychainMigrationIosTest` (5) | ⚠️ **skipped — cannot run in this host** |
+
+**The Keychain path is not covered by CI, and a green build does not imply it works.**
+
+All ten Keychain tests failed with `errSecNotAvailable (-25291)`, "No keychain is available". That is
+a property of the test host, not of the code: a Kotlin/Native test binary is a bare executable, not
+a signed application bundle, so it has no bundle identifier and no keychain access group and the
+Security framework has no keychain to give it. The real app is a signed bundle and gets the default
+access group, which is why Keychain-backed preferences work there.
+
+They now skip with a loud printed reason rather than failing, so a red build still means something
+is genuinely broken. But the coverage is gone and must not be assumed: **the Keychain is verified
+only by the device pass in §7 Step 0** — install over an existing build, confirm you are still
+logged in and the parental PIN survived. Making these assertions runnable in CI needs an app-hosted
+XCTest target, which cannot be added from a machine without Xcode. Recorded as follow-up.
+
+*(An earlier revision of this section claimed these suites had run and passed. They had not; the
+workflow was uncommitted. That correction stands — and this is what actually running them revealed.)*
 
 The Linux job proves `iosMain` type-checks; it cannot prove the cinterop calls *behave*. A second
 job, `verify-ios` (macos-15), is written to close that:

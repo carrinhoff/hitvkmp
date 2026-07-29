@@ -31,17 +31,20 @@ class KeychainSettingsIosTest {
 
     @BeforeTest
     fun setUp() {
+        if (!keychainAvailable()) return
         settings = createEncryptedSettings()
         settings.remove(probeKey)
     }
 
     @AfterTest
     fun tearDown() {
+        if (!keychainAvailable()) return
         settings.remove(probeKey)
     }
 
     @Test
     fun `writes and reads back a value`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("writes and reads back a value"); return }
         assertFalse(settings.hasKey(probeKey), "probe key should start absent")
 
         settings.putString(probeKey, "s3cr3t-value")
@@ -52,6 +55,7 @@ class KeychainSettingsIosTest {
 
     @Test
     fun `overwrites an existing value rather than duplicating it`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("overwrites an existing value rather than duplicating it"); return }
         // SecItemAdd fails with errSecDuplicateItem if an update path isn't taken; this catches
         // that class of bug, which would strand the user on a stale password after re-login.
         settings.putString(probeKey, "first")
@@ -62,6 +66,7 @@ class KeychainSettingsIosTest {
 
     @Test
     fun `remove actually deletes the item`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("remove actually deletes the item"); return }
         settings.putString(probeKey, "to-be-removed")
         settings.remove(probeKey)
 
@@ -71,6 +76,7 @@ class KeychainSettingsIosTest {
 
     @Test
     fun `a fresh Settings instance sees previously written values`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("a fresh Settings instance sees previously written values"); return }
         // The Keychain is process-wide, not instance-scoped: a value written before an app
         // restart must still be there afterwards, which is what keeps the user logged in.
         settings.putString(probeKey, "persisted")
@@ -81,6 +87,7 @@ class KeychainSettingsIosTest {
 
     @Test
     fun `round-trips the value shapes the app actually stores`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("round-trips the value shapes the app actually stores"); return }
         // Real credentials contain characters that have tripped naive Keychain wrappers before.
         val cases = mapOf(
             "hitv_probe_user" to "user.name+tag",

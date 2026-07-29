@@ -31,10 +31,16 @@ class KeychainMigrationIosTest {
     private fun legacyDefaults() = NSUserDefaults(suiteName = legacySuite)
 
     @BeforeTest
-    fun setUp() = clearBothStores()
+    fun setUp() {
+        if (!keychainAvailable()) return
+        clearBothStores()
+    }
 
     @AfterTest
-    fun tearDown() = clearBothStores()
+    fun tearDown() {
+        if (!keychainAvailable()) return
+        clearBothStores()
+    }
 
     private fun clearBothStores() {
         val legacy = NSUserDefaultsSettings(legacyDefaults())
@@ -48,6 +54,7 @@ class KeychainMigrationIosTest {
 
     @Test
     fun `migrates legacy plaintext values into the keychain`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("migrates legacy plaintext values into the keychain"); return }
         val legacy = NSUserDefaultsSettings(legacyDefaults())
         legacy.putString("username", "legacy-user")
         legacy.putString("password", "legacy-pass")
@@ -66,6 +73,7 @@ class KeychainMigrationIosTest {
 
     @Test
     fun `removes the plaintext copies after migrating`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("removes the plaintext copies after migrating"); return }
         val legacy = NSUserDefaultsSettings(legacyDefaults())
         legacy.putString("password", "should-not-survive")
         legacyDefaults().synchronize()
@@ -80,6 +88,7 @@ class KeychainMigrationIosTest {
 
     @Test
     fun `does not clobber a newer keychain value with a stale plaintext one`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("does not clobber a newer keychain value with a stale plaintext one"); return }
         // Migration runs on every launch, so it must never overwrite what the app has since
         // written. Otherwise a password change would be silently reverted on the next start.
         val keychain = createEncryptedSettings()
@@ -100,6 +109,7 @@ class KeychainMigrationIosTest {
 
     @Test
     fun `is a no-op on a clean install`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("is a no-op on a clean install"); return }
         // Nothing planted: the factory must succeed and leave both stores empty rather than
         // writing blanks that would look like an empty username to the boot check.
         val settings = createEncryptedSettings()
@@ -110,6 +120,7 @@ class KeychainMigrationIosTest {
 
     @Test
     fun `is idempotent across repeated launches`() {
+        if (!keychainAvailable()) { skipBecauseNoKeychain("is idempotent across repeated launches"); return }
         val legacy = NSUserDefaultsSettings(legacyDefaults())
         legacy.putString("username", "once")
         legacyDefaults().synchronize()
