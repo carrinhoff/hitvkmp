@@ -183,27 +183,56 @@ jobs:
       # simply skips.
       - name: Build iOS app for simulator
         run: |
+          set -uo pipefail
           cd iosApp
+
+          # Output is captured so a failure can be reported as annotations. xcodebuild exits 65
+          # for any build error and GitHub annotates only that number; the raw log needs repo
+          # admin rights to fetch, so without this the step is undiagnosable from outside.
+          # Same reasoning as scripts/report-test-failures.sh.
+          set +e
           xcodebuild build \
             -project iosApp.xcodeproj \
             -scheme iosApp \
             -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+          STATUS=${PIPESTATUS[0]}
+          set -e
 
-      # Launches it. This is the only place the app's own launch path runs on iOS:
-      #
-      #   * `BGTaskScheduler.register(forTaskWithIdentifier:)` executes in iOSApp.swift `init()`
-      #     against the REAL BGTaskSchedulerPermittedIdentifiers. A mismatch raises an ObjC
-      #     exception that Kotlin/Native cannot catch — the app dies on launch. Unit tests cannot
-      #     reach this: a test binary has the test host's Info.plist, not the app's.
-      #   * Koin init, SQLDelight open, the tri-state boot check and the first Compose frame all
-      #     run on iOS for the first time.
-      #
-      # `simctl launch` returns a pid; if the process is gone shortly after, it crashed, and the
-      # crash report is surfaced rather than swallowed.
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::xcodebuild failure detail"
+            # Anything xcodebuild formats as an error, plus the tail for context.
+            grep -nE '(error:|\*\* BUILD FAILED \*\*|The following build commands failed|Command .* failed)' \
+              "$RUNNER_TEMP/xcodebuild.log" | head -40 || true
+            echo '--- last 60 lines ---'
+            tail -60 "$RUNNER_TEMP/xcodebuild.log" || true
+            echo "::endgroup::"
+
+            # Re-emit each error line as an annotation, which is readable without admin rights.
+            grep -oE '[^ ]*error:.*' "$RUNNER_TEMP/xcodebuild.log" | head -20 | while IFS= read -r line; do
+              echo "::error title=xcodebuild::$line"
+            done
+
+            # If nothing matched, the failure was not a compile error — surface the tail instead
+            # so the annotation still says something.
+            if ! grep -q 'error:' "$RUNNER_TEMP/xcodebuild.log"; then
+              echo "::error title=xcodebuild::exit $STATUS with no 'error:' line; tail: $(tail -5 "$RUNNER_TEMP/xcodebuild.log" | tr '\n' ' ' | cut -c1-400)"
+            fi
+            exit "$STATUS"
+          fi
+
+      - name: Upload xcodebuild log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ${{ runner.temp }}/xcodebuild.log
+          if-no-files-found: ignore
+
       - name: Launch iOS app in simulator
         run: |
           set -euo pipefail
