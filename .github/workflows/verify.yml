@@ -175,6 +175,12 @@ jobs:
       # Builds the REAL app (not a test binary), so it carries the real Info.plist.
       # Unsigned: a simulator build needs no identity, which keeps this independent of the
       # signing secrets the TestFlight workflow needs.
+      # NOTE: no app-icon generation step here, unlike ios-testflight.yml. The 1024px icon is now
+      # committed at iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png. Until it
+      # was, AppIcon.appiconset/Contents.json referenced a file absent from the repo and actool
+      # failed this step with exit 65 — the release workflow only worked because it generates the
+      # file on the fly first. Its generation step is guarded by `if [ ! -f ... ]`, so it now
+      # simply skips.
       - name: Build iOS app for simulator
         run: |
           cd iosApp
